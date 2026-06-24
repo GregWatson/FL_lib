@@ -54,6 +54,8 @@ def get_angle_diff(angle1, angle2):
     return diff
 
 # Get the bounding box from a list of lines. The bounding box is defined by the top-left and bottom-right corners.
+# the argument lines is a list of (start_pt, end_pt) where each point is (x,y)
+# Returns two values tl_pt and br_pt which are both (x,y) points
 def get_bounding_box_from_lines(lines):
     if not lines:
         return None, None

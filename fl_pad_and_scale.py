@@ -48,4 +48,17 @@ def fl_pad_and_scale(image, lines, rot_point, new_img_size = 500, debug=False):
     cy = int(cy * scale_factor)
     bb = [(bb[0][0]*scale_factor, bb[0][1]*scale_factor), (bb[1][0]*scale_factor, bb[1][1]*scale_factor)]
 
-    return piece_image, bb, (cx,cy)
+    def inverse_transform(pt):
+        pt_x, pt_y = pt
+        # Undo scale
+        x_padded = pt_x / scale_factor
+        y_padded = pt_y / scale_factor
+        # Undo padding
+        x_cropped = x_padded - add_width
+        y_cropped = y_padded - add_height
+        # Undo crop
+        x_orig = x_cropped + x
+        y_orig = y_cropped + y
+        return (x_orig, y_orig)
+
+    return piece_image, bb, (cx, cy), inverse_transform
