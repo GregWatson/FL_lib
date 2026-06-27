@@ -12,8 +12,12 @@ def pre_process_image(img, debug=False):
     - Morphological operations to close gaps
     """
     # - Convert to greyscale
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    
+        # Convert the image to simple binary format (grayscale) if color
+    if len(img.shape) == 3 and img.shape[2] == 3:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = img.copy()
+
     # Blur to reduce noise
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     
@@ -21,7 +25,7 @@ def pre_process_image(img, debug=False):
     # Assume background is either very dark or very light compared to pieces.
     # We can try OTSU or adaptive. User said "solid background".
     # Let's try Otsu first as it's robust for bimodal histograms.
-    opt_thresh, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     
     # print(f"Optimum threshold: {opt_thresh}")
 

@@ -1,6 +1,7 @@
 import numpy as np
-from fl_core import get_angle, get_angle_diff, get_distance_between_2_points
+from fl_core import get_distance_between_2_points
 from polygon_angles import get_polygon_angles
+from find_tabs import find_tabs
 import cv2
 
 # Given a list of lines that form the edges of a piece, try to find
@@ -13,7 +14,10 @@ import cv2
 #   be the same as the start point of the next line. If they are close then we treat them as the same, 
 #   but if they are more than a threshold distance apart then we ignore the gap and don't consider
 #   them as connected (cannot be a corner).
+#   NOTE: The lines should have been extracted from an image that has already been rotated
+#         such that straight lines tend to be horizontal or vertical.
 # - corner_thresh: minimum angle difference in degrees to consider a corner (e.g. 50 degrees)
+# - tab_lines: a list of lines that are likely on a tab and thus unlikely to be a corner.
 # - end_to_end_dist_thresh: maximum distance between the end of one line and the 
 #   start of the next line to consider them connected (e.g. 20 pixels)
 # Returns a list of corners, where each corner is represented as a tuple of (corner_x, point, angle_diff) where:
@@ -27,7 +31,16 @@ import cv2
 # Compute a corner-ish function to evaluate how "corner-like" each potential corner is
 # This function will be used to sort the corners and select the most "corner-like" ones.
 # The angle is the EXTERNAL angle (of a polygon) between the two lines that form the corner.
-def cornerness_function(pt0, pt1, pt2, angle, rel_d_to_c, debug=False):
+def cornerness_function(pt0, pt1, pt2, angle, rel_d_to_c, tab_lines, debug=False):
+
+    def get_tab_effect(pta, ptb, tab_lines):
+        for pt in (pta, ptb):
+            for line in tab_lines:
+                for tab_pt in line:
+                    if get_distance_between_2_points(pt, tab_pt) < 40:
+                        return 1
+        return 0
+
     l1 = get_distance_between_2_points(pt0, pt1)
     l2 = get_distance_between_2_points(pt1, pt2)
     if abs(angle) < np.pi: # if the angle is very small, it's not a corner
@@ -37,10 +50,14 @@ def cornerness_function(pt0, pt1, pt2, angle, rel_d_to_c, debug=False):
         angle_effect = 20-20**(abs(np.pi*1.5 - abs(angle))) # the less the angle deviates from 270 degrees, the more corner-like it is
         length_effect = (l1 + l2)/2 # longer lines should contribute to more corner-ness, but we can take the average to avoid giving too much weight to one long line and one short line
         dist_to_corner_effect = 5.0 * (30 - 30**rel_d_to_c) # the closer to the corner of the image, the more likely it is to be a real corner of the piece rather than noise in the middle
-        corner_ness = angle_effect + length_effect + dist_to_corner_effect
+        tab_effect = 0
+        if tab_lines:
+            tab_effect = get_tab_effect(pt0, pt2, tab_lines) * 50
+        corner_ness = angle_effect + length_effect + dist_to_corner_effect - tab_effect
         if debug:
             print(f"At {int(pt1[0])},{int(pt1[1])}: angle={int(np.degrees(angle))}, lens={int(l1)}, {int(l2)}. d2c= {rel_d_to_c:.2f} ", end=' ')
-            print(f"angle_effect = {angle_effect:.3f}, length_effect = {length_effect:.3f}, dist_to_corner_effect = {dist_to_corner_effect:.3f}", end=' ')
+            print(f"angle_effect = {angle_effect:.3f}, length_effect = {length_effect:.3f}, ", end='')
+            print(f"dist_to_corner_effect = {dist_to_corner_effect:.3f}, tab_effect={tab_effect:.3f}", end=' ')
             print(f" ===> Corner_ness = {corner_ness:.2f}", end=' ')
     return corner_ness
 
@@ -49,7 +66,7 @@ def get_rel_shortest_distance_to_corner (pt, w,h, half_diag):
     m = min([get_distance_between_2_points(pt, corner) for corner in corners])
     return m/half_diag
 
-def find_corners(lines_found, tl_bbox=None, br_bbox=None, end_to_end_dist_thresh=20, debug=False):
+def find_corners(lines_found, tl_bbox=None, br_bbox=None, tab_lines=[], end_to_end_dist_thresh=20, debug=False):
     corners = []
     if not len(lines_found):
         return corners
@@ -117,7 +134,7 @@ def find_corners(lines_found, tl_bbox=None, br_bbox=None, end_to_end_dist_thresh
         if debug: print(f"Corner {i}:", end='')
         rel_d_to_c = get_rel_shortest_distance_to_corner((pt1[0]-tl_bbox[0], pt1[1]-tl_bbox[1]), bb_w, bb_h, half_diag) 
         #print(f"Distance to closest image corner: {int(d_to_c)}")
-        cornerness_value = cornerness_function(pt0, pt1, pt2, angle[1], rel_d_to_c, debug=debug) # outer angle
+        cornerness_value = cornerness_function(pt0, pt1, pt2, angle[1], rel_d_to_c, tab_lines=tab_lines, debug=debug) # outer angle
         # Store the corner information
         corners.append((cornerness_value, pt1, angle[1]))
         if debug:
