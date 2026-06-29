@@ -139,3 +139,8 @@ def show_image(img, str="Image", max=1000, wait_for_key=True):
     cv2.imshow(str, resized_image)
     if wait_for_key:
         cv2.waitKey(0)
+
+def print_histogram(values, bin_labels):
+    scale = max(values)/60
+    for i, v in enumerate(values):
+        print(f"{bin_labels[i]} {int(values[i] / scale) * '#'}")

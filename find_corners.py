@@ -159,9 +159,6 @@ def find_corners(lines_found, tl_bbox=None, br_bbox=None, tab_lines=[], end_to_e
             quandrant_used[quad_y][quad_x] = True
             if debug:
                 print(f"Adding corner at point {point} with corner_x value {corner[0]:.2f} and angle difference {np.degrees(corner[2]):.2f} degrees to final corners.")
-        else:
-            if debug:
-                print(f"Skipping corner at point {point} as quadrant {quad_x},{quad_y} is used.")
 
     if debug:
         for i, corner in enumerate(final_corners):

@@ -49,7 +49,7 @@ def find_tabs(lines, bbox, pct_tolerance=10.0):
         for pt in line:
             if point_is_tab(pt, tl_x, tl_y, br_x, br_y):
                 lines_touch_bb.append(line)
-                print(f"Line is tab. Len is {lls[i]}")
+                # print(f"Line is tab. Len is {lls[i]}")
                 break
 
     return lines_touch_bb

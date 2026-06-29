@@ -1,7 +1,7 @@
 import numpy as np
 # from Process.order_lines import order_lines
 from find_lines import find_lines
-from fl_core import get_angle
+from fl_core import get_angle, print_histogram
 import cv2
 
 # Find rotation by either:
@@ -22,7 +22,7 @@ import cv2
 # actual center.
 USE_CENTROID = True
 
-def group_edge_lines(lines, line_lengths, num_bins=36, min_length=10):
+def group_edge_lines(lines, line_lengths, num_bins=36, min_length=10, debug=False):
     """
     Lines are list of (start, end) tuples from edge detection.
     line_lengths is length of corresponding line segments.
@@ -34,6 +34,9 @@ def group_edge_lines(lines, line_lengths, num_bins=36, min_length=10):
     # Initialize empty bins: {bin_index: [list_of_lines]}
     angle_bins = { i: [] for i in range(num_bins)}
     bin_size_deg = 180.0 / num_bins
+    bin_labels = [f"{int(i*bin_size_deg)} - {int((i+1)*bin_size_deg)}:" for i in range(num_bins) ]
+    for i in range(num_bins):
+        while len(bin_labels[i])<12: bin_labels[i] = ' ' + bin_labels[i]
 
     for idx,line in enumerate(lines):
         (x1, y1), (x2, y2) = line
@@ -47,7 +50,6 @@ def group_edge_lines(lines, line_lengths, num_bins=36, min_length=10):
             
         # Get angle in degrees (0 to 180)
         angle_deg = np.degrees(np.arctan2(dy, dx)) % 180
-        
         # Determine which bin it falls into
         bin_idx = int(angle_deg // bin_size_deg) % num_bins
         
@@ -56,7 +58,17 @@ def group_edge_lines(lines, line_lengths, num_bins=36, min_length=10):
             'weight': length,
             'angle': angle_deg
         })
-        
+
+    if debug: # print histogram
+        values = [ ]
+        for i in range(num_bins):
+            s = 0
+            for l in angle_bins[i]:
+                s += int(l['weight'])
+            values.append(s)
+
+        print_histogram(values, bin_labels)
+
     return angle_bins
 
 def get_sorted_bins(angle_bins):
@@ -71,19 +83,21 @@ def get_sorted_bins(angle_bins):
 
 # Combine num_adj bins on either side of the max bin to get a more stable angle estimate, 
 # and take the weighted average of the angles in those bins.
-def get_main_angle(angle_bins,max1, num_adj=2, debug=False):
+def get_main_angle(angle_bins, max1, num_adj=1, debug=False):
     if max1 not in angle_bins:
         return None
-    main_bins = [max1]
-    for i in range(1, num_adj+1):
-        main_bins.append((max1 + i) % len(angle_bins))
-        main_bins.append((max1 - i) % len(angle_bins))
+    prev = (max1 - 1) % len(angle_bins)
+    nxt = (max1 + 1) % len(angle_bins)
     total_weight = 0
     weighted_angle_sum = 0
-    for bin_idx in main_bins:
+    for bin_idx in [prev, max1, nxt]:
         for line in angle_bins[bin_idx]:
             weight = line['weight']
             angle_rad = np.radians(line['angle'])
+            if bin_idx == prev and prev > max1: # wrapped
+                angle_rad = np.pi - angle_rad
+            if bin_idx == nxt and nxt < max1: # wrapped
+                angle_rad = np.pi + angle_rad
             weighted_angle_sum += weight * angle_rad
             total_weight += weight
     if total_weight == 0:
@@ -184,7 +198,7 @@ def find_rotation(img, cx, cy, debug=False):
         if line_max_length == 0:
 
             # min_angle,cx,cy = get_rot_by_longest_line(gray, cx, cy, debug=debug)
-            angle_bins = group_edge_lines(lines, line_lengths, num_bins=12, min_length=10)
+            angle_bins = group_edge_lines(lines, line_lengths, num_bins=12, min_length=10, debug=debug)
             sorted_bins = get_sorted_bins(angle_bins)
             min_angle = get_main_angle(angle_bins,sorted_bins[0][0], num_adj=2, debug=debug)
 
