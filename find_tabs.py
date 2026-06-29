@@ -37,7 +37,7 @@ def find_tabs(lines, bbox, pct_tolerance=10.0):
     
     lines_touch_bb = []
     
-    # list of lene lengths
+    # list of line lengths
     lls = [ get_distance_between_2_points(line[0], line[1]) for line in lines ]
 
     for i, line in enumerate(lines):

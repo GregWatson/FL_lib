@@ -1,7 +1,6 @@
 import numpy as np
 from fl_core import get_distance_between_2_points
 from polygon_angles import get_polygon_angles
-from find_tabs import find_tabs
 import cv2
 
 # Given a list of lines that form the edges of a piece, try to find
