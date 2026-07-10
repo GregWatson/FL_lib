@@ -15,12 +15,7 @@ import cv2
 #    This is more robust to irregular pieces and line detection issues, but 
 #    may be less accurate if there are a lot of short lines.
 # 
-# We can also use the center of mass of the piece as the center of rotation, 
-# or we can use the center of the initial bounding box of the lines as the 
-# center of rotation. The latter may be more stable if the piece is very 
-# irregular and the center of mass is not a good representation of the piece's 
-# actual center.
-USE_CENTROID = True
+# We use the center of mass of the piece as the center of rotation.
 
 def group_edge_lines(lines, line_lengths, num_bins=36, min_length=10, debug=False):
     """
@@ -125,7 +120,7 @@ def find_rotation(img, cx, cy, debug=False):
 
 
     # Find a set of lines for the outline using my own algorithm.
-    len_thresh = (cx + cy) / 40.0
+    len_thresh = max(cx, cy) * 0.017
     full_lines = find_lines(gray, len_thresh=len_thresh, debug=debug)
     lines = []
     
@@ -161,17 +156,6 @@ def find_rotation(img, cx, cy, debug=False):
         bb_xlength = bb_max_x - bb_min_x
         bb_ylength = bb_max_y - bb_min_y
 
-        if debug:
-            # print(f"center of mass x,y is {cx},{cy}")
-            # print(f"center of bounding box x,y is {bb_cx},{bb_cy}.  bb X len={bb_xlength}  bb Y len={bb_ylength}")
-            if USE_CENTROID:
-                print(f"Using center of mass for rotation: {cx},{cy}")
-            else:
-                print(f"Using center of bounding box for rotation: {bb_cx},{bb_cy}")
-        if not USE_CENTROID:
-            cx = bb_cx
-            cy = bb_cy
-
         # See if we have any LONG lines that we can infer as EDGES.
         len_threshold = (bb_xlength + bb_ylength) * 0.2
         line_max_length = 0
@@ -193,11 +177,10 @@ def find_rotation(img, cx, cy, debug=False):
                 if debug:
                     print(f"Longest line found: ({x1}, {y1}) to ({x2}, {y2}) with length {length}   (thresh: {len_threshold})  angle {min_angle}")
 
-        # If we couldn't find a long line then we will just use the bounding box method.
+        # If we couldn't find a long line then use the most common angle.
 
         if line_max_length == 0:
 
-            # min_angle,cx,cy = get_rot_by_longest_line(gray, cx, cy, debug=debug)
             angle_bins = group_edge_lines(lines, line_lengths, num_bins=12, min_length=10, debug=debug)
             sorted_bins = get_sorted_bins(angle_bins)
             min_angle = get_main_angle(angle_bins,sorted_bins[0][0], num_adj=2, debug=debug)
@@ -238,4 +221,4 @@ def find_rotation(img, cx, cy, debug=False):
         
     if debug:
         print(f"Lines found: {line_count}.   Angle {np.degrees(min_angle):.2f} degrees")
-    return min_angle, cx, cy, lines
+    return min_angle, lines

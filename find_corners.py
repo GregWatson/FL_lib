@@ -48,7 +48,8 @@ def cornerness_function(pt0, pt1, pt2, angle, rel_d_to_c, tab_lines, debug=False
         # angle_effect = 10.0/(abs(np.pi*1.5 - abs(angle))) # the less the angle deviates from 270 degrees, the more corner-like it is
         angle_effect = 20-20**(abs(np.pi*1.5 - abs(angle))) # the less the angle deviates from 270 degrees, the more corner-like it is
         length_effect = (l1 + l2)/2 # longer lines should contribute to more corner-ness, but we can take the average to avoid giving too much weight to one long line and one short line
-        dist_to_corner_effect = 5.0 * (30 - 30**rel_d_to_c) # the closer to the corner of the image, the more likely it is to be a real corner of the piece rather than noise in the middle
+        #dist_to_corner_effect = 5.0 * (30 - 30**rel_d_to_c) # the closer to the corner of the image, the more likely it is to be a real corner of the piece rather than noise in the middle
+        dist_to_corner_effect = 100 * (5 ** (-rel_d_to_c)) # the closer to the corner of the image, the more likely it is to be a real corner of the piece rather than noise in the middle
         tab_effect = 0
         if tab_lines:
             tab_effect = get_tab_effect(pt0, pt2, tab_lines) * 50
