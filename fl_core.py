@@ -29,6 +29,19 @@ def rotate_line(line, center, angle_rad):
 def get_distance_between_2_points(pt1, pt2):
     return math.sqrt((pt1[0] - pt2[0])**2 + (pt1[1] - pt2[1])**2)
 
+# shortest distance from point p1 to the infinite line segment defined by points p2 and p3
+def point_to_infinite_line_distance(p1, p2, p3):
+    x1, y1 = p1; x2, y2 = p2; x3, y3 = p3
+    
+    # Line equation coefficients: Ax + By + C = 0
+    A = y3 - y2 ; B = x2 - x3; C = x3 * y2 - y3 * x2
+    
+    # Perpendicular distance formula
+    numerator = abs(A * x1 + B * y1 + C)
+    denominator = math.sqrt(A**2 + B**2)
+    
+    return numerator / denominator
+
 def points_are_close(pt1, pt2, thresh=10):
     return get_distance_between_2_points(pt1, pt2) < thresh
 
@@ -113,9 +126,11 @@ def get_adjacent_points(gray, point, thresh=255):
                 continue
             new_x = x + dx
             new_y = y + dy
-            if 0 <= new_x < gray.shape[1] and 0 <= new_y < gray.shape[0]:
-                if gray[new_y, new_x] >= thresh:
+            if new_x >= 0 and new_x < gray.shape[1] and new_y >= 0 and new_y < gray.shape[0]:
+                #print(f"Checking adjacent point ({new_x}, {new_y}) with value {gray[new_y][new_x]} against threshold {thresh}.")
+                if gray[new_y][new_x] >= thresh:
                     adjacent_points.append((new_x, new_y))
+                    # print(f"Added adjacent point ({new_x}, {new_y}) to list.")
     return adjacent_points
 
 # returns 6 color palette and names. Colors are (B:G:R) tuples.
@@ -130,6 +145,9 @@ def draw_lines_on_color_image(image, lines, palette, dx=3, thickness=1):
         (x1, y1), (x2, y2) = line
         cv2.line(image, (int(x1+dx), int(y1)), (int(x2+dx), int(y2)), palette[color_index % len(palette)], thickness=thickness)
         color_index = (color_index + 1) % len(palette)
+
+def draw_triangle(image, pt0, pt1, pt2, color=(0, 255, 0), thickness=1):
+    cv2.polylines(image, [np.array([[pt0[0], pt0[1]], [pt1[0], pt1[1]], [pt2[0], pt2[1]]], dtype=np.int32)], isClosed=True, color=color, thickness=thickness)   
 
 def show_image(img, str="Image", max=1000, wait_for_key=True):
     x_scale_factor = 1000.0 / img.shape[1]

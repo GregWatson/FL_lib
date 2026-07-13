@@ -19,7 +19,7 @@ import cv2
 # - tab_lines: a list of lines that are likely on a tab and thus unlikely to be a corner.
 # - end_to_end_dist_thresh: maximum distance between the end of one line and the 
 #   start of the next line to consider them connected (e.g. 20 pixels)
-# Returns a list of corners, where each corner is represented as a tuple of (corner_x, point, angle_diff) where:
+# Returns a list of 4 corners in [row][column] format, where each corner is represented as a tuple of (corner_x, point, angle_diff) where:
 # - corner_x is a value that represents how "corner-like" this corner is, which is a function of the 
 #   angle difference and the lengths of the lines. We can use this to sort the corners and only keep the most "corner-like" corners.
 # - point is the (int(x), int(y)) point of the corner (e.g. the end of line1 or the start of line2, or we could compute an intersection point 
@@ -143,7 +143,7 @@ def find_corners(lines_found, tl_bbox=None, br_bbox=None, tab_lines=[], end_to_e
     corners.sort(key=lambda x: x[0], reverse=True)
 
     # Only have one corner per quadrant, and only keep corners that are above a certain threshold of "corner-ness" (e.g. corner_x > 0.5)
-    final_corners = []  
+    final_corners = [[False, False],[False,False]] # by row then column
     # compute the quadrant of each corner relative to the center of the piece, and only keep the most "corner-like" corner in each quadrant.
     quandrant_used= [[False, False],[False,False]]
     # get center
@@ -155,17 +155,10 @@ def find_corners(lines_found, tl_bbox=None, br_bbox=None, tab_lines=[], end_to_e
         quad_x = 0 if point[0] < center_x else 1
         quad_y = 0 if point[1] < center_y else 1
         if not quandrant_used[quad_y][quad_x] :
-            final_corners.append(corner)
+            final_corners[quad_y][quad_x] = corner
             quandrant_used[quad_y][quad_x] = True
             if debug:
                 print(f"Adding corner at point {point} with corner_x value {corner[0]:.2f} and angle difference {np.degrees(corner[2]):.2f} degrees to final corners.")
-
-    if debug:
-        for i, corner in enumerate(final_corners):
-            print(f"Corner {i}: corner_x={corner[0]:.2f}, point={corner[1]}, angle_diff={np.degrees(corner[2]):.2f} degrees")
-        for i, corner in enumerate(final_corners):
-            print(f"({corner[1][0]}, {corner[1][1]}), ", end='')
-        print
 
     return final_corners
 
