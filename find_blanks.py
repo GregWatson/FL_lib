@@ -22,7 +22,6 @@ def find_blank_lines(lines, bbox, center_pt, pct_tolerance=10.0):
     tl, br = bbox
     tl_x, tl_y = map(int, tl)
     br_x, br_y = map(int, br)
-    cx, cy = center_pt
     
     def point_is_blank(pt, tl_x, tl_y, br_x, br_y):
         w = abs(br_x - tl_x)
@@ -48,6 +47,11 @@ def find_blank_lines(lines, bbox, center_pt, pct_tolerance=10.0):
     l_dist_from_center = [ min(get_distance_between_2_points(line[0], center_pt), get_distance_between_2_points(line[1], center_pt))  for line in lines]
 
     min_dist = min(l_dist_from_center)
+
+    # find points that are likely to be part of a blank. A line is likely to be part of a blank if:
+    # - it is short (i.e. not a long edge of the piece)
+    # - it is close to the center of the piece (i.e. not on the edge of the piece)
+    # - at least one of its endpoints is not too close to the bounding box (i.e. not on the edge of the piece)
 
     for i, line in enumerate(lines):
         prev_i = (i - 1) % len(lls)

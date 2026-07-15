@@ -17,6 +17,9 @@ import cv2
 #         such that straight lines tend to be horizontal or vertical.
 # - corner_thresh: minimum angle difference in degrees to consider a corner (e.g. 50 degrees)
 # - tab_lines: a list of lines that are likely on a tab and thus unlikely to be a corner.
+# - blank_lines: a list of lines that are likely on a blank and thus unlikely to be a corner.
+# - tl_bbox: top left corner of the bounding box of the piece (x,y)
+# - br_bbox: bottom right corner of the bounding box of the piece (x,y)
 # - end_to_end_dist_thresh: maximum distance between the end of one line and the 
 #   start of the next line to consider them connected (e.g. 20 pixels)
 # Returns a list of 4 corners in [row][column] format, where each corner is represented as a tuple of (corner_x, point, angle_diff) where:
@@ -66,7 +69,60 @@ def get_rel_shortest_distance_to_corner (pt, w,h, half_diag):
     m = min([get_distance_between_2_points(pt, corner) for corner in corners])
     return m/half_diag
 
-def find_corners(lines_found, tl_bbox=None, br_bbox=None, tab_lines=[], end_to_end_dist_thresh=20, debug=False):
+# Given an ordered set of lines that form the outline of a piece, retuyrn a polygon
+# that represents the entire piece. If the end of one line is close to the start of 
+# the next line, we consider them connected and we change the points to be the average 
+# of the two points.
+def get_polygon_from_lines(lines, end_to_end_dist_thresh=20):
+    polygon = []
+    for i in range(len(lines)):
+        line1 = lines[i]
+        line2 = lines[(i + 1) % len(lines)]
+        end1 = line1[1]
+        start2 = line2[0]
+        distance = get_distance_between_2_points(end1, start2)
+        if distance <= end_to_end_dist_thresh:
+            avg_x = int((end1[0] + start2[0]) / 2)
+            avg_y = int((end1[1] + start2[1]) / 2)
+            polygon.append([avg_x, avg_y])
+        else:
+            polygon.append([int(end1[0]), int(end1[1])])
+            polygon.append([int(start2[0]), int(start2[1])])
+    return polygon
+
+# Compute keep-out zones where corners are unlikely to be found due to the presence of tabs or blanks.
+# Return xmin, xmax, ymin, ymax for each keep-out zone.
+def get_keep_outs(tab_lines, blank_lines, tl_bbox, br_bbox, debug=False):
+    xvals = []
+    yvals= []
+    w = br_bbox[0] - tl_bbox[0]
+    h = br_bbox[1] - tl_bbox[1]
+    xmin = int(w * 0.3 + tl_bbox[0])
+    xmax = int(w * 0.7 + tl_bbox[0])
+    ymin = int(h * 0.3 + tl_bbox[1])
+    ymax = int(h * 0.7 + tl_bbox[1])
+    for line in tab_lines + blank_lines:
+        for x,y in line:
+            if x >= xmin and x <= xmax:
+                xvals.append(int(x))
+                continue
+            if y >= ymin and y <= ymax:
+                yvals.append(int(y))
+    xleft = min(xvals) if xvals else None
+    xright = max(xvals) if xvals else None
+    ytop = min(yvals) if yvals else None
+    ybottom = max(yvals) if yvals else None
+    margin = 10    
+    xmin = xleft - margin if xleft is not None else int(br_bbox[0])
+    xmax = xright + margin if xright is not None else 0
+    ymin = ytop - margin if ytop is not None else int(br_bbox[1])
+    ymax = ybottom + margin if ybottom is not None else 0
+
+    keep_outs =[(xmin, xmax, ymin, ymax)]
+    print(f"find_corners: Keep-out zones: {keep_outs}")
+    return keep_outs
+
+def find_corners(lines_found, tl_bbox=None, br_bbox=None, tab_lines=[], blank_lines=[], end_to_end_dist_thresh=20, debug=False):
     corners = []
     if not len(lines_found):
         return corners
@@ -81,30 +137,7 @@ def find_corners(lines_found, tl_bbox=None, br_bbox=None, tab_lines=[], end_to_e
         tl_bbox = (min([min(line[0][0], line[1][0]) for line in lines_found]), min([min(line[0][1], line[1][1]) for line in lines_found]))
         br_bbox = (max([max(line[0][0], line[1][0]) for line in lines_found]), max([max(line[0][1], line[1][1]) for line in lines_found]))
 
-    polygon = []
-    for i in range(len(lines_found)):
-        line1 = lines_found[i]
-        line2 = lines_found[(i + 1) % len(lines_found)]
-        # if debug:
-        #    print(f"Processing vertex {i}: ",end='')
-        end1 = line1[1]
-        start2 = line2[0]
-        distance = get_distance_between_2_points(end1, start2)
-        # if debug:
-        #     print(f" Distance {int(end1[0])}, {int(end1[1])} - {int(start2[0])}, {int(start2[1])    }: {int(distance)}", end='')
-        if distance <= end_to_end_dist_thresh:
-            # If the end of the first line is close to the start of the second line, average the points
-            avg_x = int((end1[0] + start2[0]) / 2)
-            avg_y = int((end1[1] + start2[1]) / 2)
-            polygon.append([avg_x, avg_y])
-            # if debug:
-            #     print(" So averaged to [" + str(avg_x) + ", " + str(avg_y) + "]")
-        else:
-            # If they are too far apart, we'll handle this later when checking for corners
-            polygon.append([int(end1[0]), int(end1[1])])
-            polygon.append([int(start2[0]), int(start2[1])])
-            # if debug:
-            #     print(f" So added as separate points. {polygon[-2:-1]}")
+    polygon = get_polygon_from_lines(lines_found, end_to_end_dist_thresh)
 
     # debug by displaying an image with points joined by arrows in order
     if debug and len(polygon) > 1:
@@ -126,6 +159,11 @@ def find_corners(lines_found, tl_bbox=None, br_bbox=None, tab_lines=[], end_to_e
     bb_w = br_bbox[0] - tl_bbox[0]
     bb_h = br_bbox[1] - tl_bbox[1]
     half_diag = np.sqrt(bb_w**2 + bb_h**2) / 2
+
+
+    # Compute keep-out areas that cannot be corners due to them being blanks or tabs.
+    # We will use this to reduce the corner-ness of corners that are near these areas.
+    keep_outs = get_keep_outs(tab_lines, blank_lines, tl_bbox, br_bbox, debug=debug)
 
     for i, angle in enumerate(angles):
         pt0 = poly_points[(i - 1) % len(poly_points)]
