@@ -1,6 +1,8 @@
 import numpy as np
 from fl_core import get_distance_between_2_points
-from polygon_angles import get_polygon_angles
+from polygon_angles import get_polygon_outer_angles
+from find_blanks import find_blank_areas
+from find_tabs import find_tab_areas
 import cv2
 
 # Given a list of lines that form the edges of a piece, try to find
@@ -16,8 +18,6 @@ import cv2
 #   NOTE: The lines should have been extracted from an image that has already been rotated
 #         such that straight lines tend to be horizontal or vertical.
 # - corner_thresh: minimum angle difference in degrees to consider a corner (e.g. 50 degrees)
-# - tab_lines: a list of lines that are likely on a tab and thus unlikely to be a corner.
-# - blank_lines: a list of lines that are likely on a blank and thus unlikely to be a corner.
 # - tl_bbox: top left corner of the bounding box of the piece (x,y)
 # - br_bbox: bottom right corner of the bounding box of the piece (x,y)
 # - end_to_end_dist_thresh: maximum distance between the end of one line and the 
@@ -33,14 +33,14 @@ import cv2
 # Compute a corner-ish function to evaluate how "corner-like" each potential corner is
 # This function will be used to sort the corners and select the most "corner-like" ones.
 # The angle is the EXTERNAL angle (of a polygon) between the two lines that form the corner.
-def cornerness_function(pt0, pt1, pt2, angle, rel_d_to_c, tab_lines, debug=False):
+def cornerness_function(pt0, pt1, pt2, angle, rel_d_to_c, keep_outs, debug=False):
 
-    def get_tab_effect(pta, ptb, tab_lines):
-        for pt in (pta, ptb):
-            for line in tab_lines:
-                for tab_pt in line:
-                    if get_distance_between_2_points(pt, tab_pt) < 40:
-                        return 1
+    # return 1 if either point falls in the corner keep-out zones, otherwise return 0. 
+    def get_keep_out_effect(pta, ptb, ptc, keep_outs):
+        for pt in (pta, ptb, ptc):
+            for (xmin, ymin), (xmax, ymax) in keep_outs:
+                if pt[0] > xmin and pt[0] <= xmax: return 1
+                if pt[1] > ymin and pt[1] <= ymax: return 1
         return 0
 
     l1 = get_distance_between_2_points(pt0, pt1)
@@ -53,14 +53,16 @@ def cornerness_function(pt0, pt1, pt2, angle, rel_d_to_c, tab_lines, debug=False
         length_effect = (l1 + l2)/2 # longer lines should contribute to more corner-ness, but we can take the average to avoid giving too much weight to one long line and one short line
         #dist_to_corner_effect = 5.0 * (30 - 30**rel_d_to_c) # the closer to the corner of the image, the more likely it is to be a real corner of the piece rather than noise in the middle
         dist_to_corner_effect = 100 * (5 ** (-rel_d_to_c)) # the closer to the corner of the image, the more likely it is to be a real corner of the piece rather than noise in the middle
-        tab_effect = 0
-        if tab_lines:
-            tab_effect = get_tab_effect(pt0, pt2, tab_lines) * 50
-        corner_ness = angle_effect + length_effect + dist_to_corner_effect - tab_effect
+        keep_out_effect = 0
+        if keep_outs:
+            keep_out_effect = 100 * get_keep_out_effect(pt0, pt1, pt2, keep_outs) 
+
+        corner_ness = angle_effect + length_effect + dist_to_corner_effect - keep_out_effect
+
         if debug:
             print(f"At {int(pt1[0])},{int(pt1[1])}: angle={int(np.degrees(angle))}, lens={int(l1)}, {int(l2)}. d2c= {rel_d_to_c:.2f} ", end=' ')
             print(f"angle_effect = {angle_effect:.3f}, length_effect = {length_effect:.3f}, ", end='')
-            print(f"dist_to_corner_effect = {dist_to_corner_effect:.3f}, tab_effect={tab_effect:.3f}", end=' ')
+            print(f"dist_to_corner_effect = {dist_to_corner_effect:.3f}, keep_out_effect={keep_out_effect:.3f}", end=' ')
             print(f" ===> Corner_ness = {corner_ness:.2f}", end=' ')
     return corner_ness
 
@@ -69,7 +71,7 @@ def get_rel_shortest_distance_to_corner (pt, w,h, half_diag):
     m = min([get_distance_between_2_points(pt, corner) for corner in corners])
     return m/half_diag
 
-# Given an ordered set of lines that form the outline of a piece, retuyrn a polygon
+# Given an ordered set of lines that form the outline of a piece, return a polygon
 # that represents the entire piece. If the end of one line is close to the start of 
 # the next line, we consider them connected and we change the points to be the average 
 # of the two points.
@@ -92,37 +94,12 @@ def get_polygon_from_lines(lines, end_to_end_dist_thresh=20):
 
 # Compute keep-out zones where corners are unlikely to be found due to the presence of tabs or blanks.
 # Return xmin, xmax, ymin, ymax for each keep-out zone.
-def get_keep_outs(tab_lines, blank_lines, tl_bbox, br_bbox, debug=False):
-    xvals = []
-    yvals= []
-    w = br_bbox[0] - tl_bbox[0]
-    h = br_bbox[1] - tl_bbox[1]
-    xmin = int(w * 0.3 + tl_bbox[0])
-    xmax = int(w * 0.7 + tl_bbox[0])
-    ymin = int(h * 0.3 + tl_bbox[1])
-    ymax = int(h * 0.7 + tl_bbox[1])
-    for line in tab_lines + blank_lines:
-        for x,y in line:
-            if x >= xmin and x <= xmax:
-                xvals.append(int(x))
-                continue
-            if y >= ymin and y <= ymax:
-                yvals.append(int(y))
-    xleft = min(xvals) if xvals else None
-    xright = max(xvals) if xvals else None
-    ytop = min(yvals) if yvals else None
-    ybottom = max(yvals) if yvals else None
-    margin = 10    
-    xmin = xleft - margin if xleft is not None else int(br_bbox[0])
-    xmax = xright + margin if xright is not None else 0
-    ymin = ytop - margin if ytop is not None else int(br_bbox[1])
-    ymax = ybottom + margin if ybottom is not None else 0
+def get_keep_outs(poly_points, outer_angles, tl_bbox, br_bbox, debug=False):
+    blank_keep_outs = find_blank_areas(poly_points, outer_angles, tl_bbox, br_bbox, debug=debug)
+    tab_keep_outs = find_tab_areas(poly_points, outer_angles, tl_bbox, br_bbox, blank_keep_outs, debug=debug)
+    return blank_keep_outs, tab_keep_outs
 
-    keep_outs =[(xmin, xmax, ymin, ymax)]
-    print(f"find_corners: Keep-out zones: {keep_outs}")
-    return keep_outs
-
-def find_corners(lines_found, tl_bbox=None, br_bbox=None, tab_lines=[], blank_lines=[], end_to_end_dist_thresh=20, debug=False):
+def find_corners(lines_found, tl_bbox=None, br_bbox=None, end_to_end_dist_thresh=20, debug=False):
     corners = []
     if not len(lines_found):
         return corners
@@ -139,22 +116,12 @@ def find_corners(lines_found, tl_bbox=None, br_bbox=None, tab_lines=[], blank_li
 
     polygon = get_polygon_from_lines(lines_found, end_to_end_dist_thresh)
 
-    # debug by displaying an image with points joined by arrows in order
-    if debug and len(polygon) > 1:
-        SIZE = 500
-        img = np.zeros((SIZE, SIZE,3), dtype=np.uint8)
-        for i, point in enumerate(polygon):
-            cv2.arrowedLine(img, (point[0], point[1]), (polygon[(i + 1) % len(polygon)][0], polygon[(i + 1) % len(polygon)][1]), (0, 150, 0), 1)
-            cv2.putText(img, f"{i}", (point[0], point[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        cv2.imshow(f"Polygon ordering", img)
-        # cv2.waitKey(0)
-
     poly_points = np.array(polygon, dtype=np.int32)
-    angles = get_polygon_angles(poly_points)
+    outer_angles = get_polygon_outer_angles(poly_points)
 
     if debug:
-        for i, angle in enumerate(angles):
-            print(f"Vertex {i}: point={int(poly_points[i][0])},{int(poly_points[i][1])}, inner angle={int(np.degrees(angle[0]))}, outer angle={int(np.degrees(angle[1]))}")
+        for i, outer_angle in enumerate(outer_angles):
+            print(f"Vertex {i}: point={int(poly_points[i][0])},{int(poly_points[i][1])}, inner angle={int(np.degrees(2*np.pi - outer_angle))}, outer angle={int(np.degrees(outer_angle))}")
     
     bb_w = br_bbox[0] - tl_bbox[0]
     bb_h = br_bbox[1] - tl_bbox[1]
@@ -163,18 +130,35 @@ def find_corners(lines_found, tl_bbox=None, br_bbox=None, tab_lines=[], blank_li
 
     # Compute keep-out areas that cannot be corners due to them being blanks or tabs.
     # We will use this to reduce the corner-ness of corners that are near these areas.
-    keep_outs = get_keep_outs(tab_lines, blank_lines, tl_bbox, br_bbox, debug=debug)
+    blank_keep_outs, tab_keep_outs = get_keep_outs(poly_points, outer_angles, tl_bbox, br_bbox, debug=debug)
+    keep_outs = blank_keep_outs + tab_keep_outs
 
-    for i, angle in enumerate(angles):
+    # debug by displaying an image with points joined by arrows in order
+    if debug and len(polygon) > 1:
+        SIZE = 500
+        img = np.zeros((SIZE, SIZE,3), dtype=np.uint8)
+        for i, point in enumerate(polygon):
+            cv2.arrowedLine(img, (point[0], point[1]), (polygon[(i + 1) % len(polygon)][0], polygon[(i + 1) % len(polygon)][1]), (0, 150, 0), 1)
+            cv2.putText(img, f"{i}", (point[0], point[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        # add keepouts
+        for (xmin, ymin), (xmax, ymax) in blank_keep_outs:
+            cv2.rectangle(img, (xmin, ymin), (xmax, ymax), (0, 0, 255), 2)
+        for (xmin, ymin), (xmax, ymax) in tab_keep_outs:
+            cv2.rectangle(img, (xmin, ymin), (xmax, ymax), (255, 0, 0), 2)
+        cv2.imshow(f"Polygon ordering", img)
+        # cv2.waitKey(0)
+
+
+    for i, outer_angle in enumerate(outer_angles):
         pt0 = poly_points[(i - 1) % len(poly_points)]
         pt1 = poly_points[i]
         pt2 = poly_points[(i + 1) % len(poly_points)]
         if debug: print(f"Corner {i}:", end='')
         rel_d_to_c = get_rel_shortest_distance_to_corner((pt1[0]-tl_bbox[0], pt1[1]-tl_bbox[1]), bb_w, bb_h, half_diag) 
         #print(f"Distance to closest image corner: {int(d_to_c)}")
-        cornerness_value = cornerness_function(pt0, pt1, pt2, angle[1], rel_d_to_c, tab_lines=tab_lines, debug=debug) # outer angle
+        cornerness_value = cornerness_function(pt0, pt1, pt2, outer_angle, rel_d_to_c, keep_outs=keep_outs, debug=debug) # outer angle
         # Store the corner information
-        corners.append((cornerness_value, pt1, angle[1]))
+        corners.append((cornerness_value, pt1, outer_angle)) # store the corner-ness value, the point, and the angle difference
         if debug:
             print("")
     # Sort the corners by their "corner-ness" (cornerness_value) in descending order
@@ -198,5 +182,5 @@ def find_corners(lines_found, tl_bbox=None, br_bbox=None, tab_lines=[], blank_li
             if debug:
                 print(f"Adding corner at point {point} with corner_x value {corner[0]:.2f} and angle difference {np.degrees(corner[2]):.2f} degrees to final corners.")
 
-    return final_corners
+    return final_corners, blank_keep_outs, tab_keep_outs
 

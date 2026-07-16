@@ -24,7 +24,7 @@ def angle_between(u, v):
     return math.degrees(math.acos(cos_theta))
 
 # Given a list of points determine if the ordering is counter-clockwise or clockwise. 
-# This can be useful to determine if the angles we compute are inner or outer angles of a polygon.
+# This is needed to determine if the angles we compute are internal or external angles of a polygon.
 def is_counter_clockwise(points):
     total = 0
     n = len(points)
@@ -46,9 +46,10 @@ def is_counter_clockwise(points):
     # print(is_counter_clockwise(points)) # Returns True (Counter-Clockwise)
 
 
-def get_polygon_angles(vertices):
+def get_polygon_outer_angles(vertices):
     """
-    Given a list of vertices in CW order, return a list of (inner, outer) angles.
+    Given a list of vertices in CW order, return a list of outer (external) angles (one per point).
+    The inner angle is 2*pi - outer angle. The angles are returned in radians.
     """
     n = len(vertices)
     results = []
@@ -70,19 +71,15 @@ def get_polygon_angles(vertices):
         if is_CCW:
             if c < 0:
                 outer = theta
-                inner = np.pi * 2 - theta
             else:
                 outer = np.pi * 2 - theta
-                inner = theta
         else:
             if c >= 0:
                 outer = theta
-                inner = np.pi * 2 - theta
             else:   
                 outer = np.pi * 2 - theta
-                inner = theta
 
-        # print(f"ANGLE: Vertex {i}: point={int(p_curr[0])},{int(p_curr[1])}, outer angle={int(np.degrees(outer))}, inner angle={int(np.degrees(inner))}, cross={int(c)}")
-        results.append((inner, outer))
+        # print(f"ANGLE: Vertex {i}: point={int(p_curr[0])},{int(p_curr[1])}, outer angle={int(np.degrees(outer))}, inner angle={int(np.degrees(2*np.pi - outer))}, cross={int(c)}")
+        results.append(outer)
 
     return results

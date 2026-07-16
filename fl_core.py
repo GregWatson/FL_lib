@@ -1,4 +1,6 @@
 # core routines used for line finding
+import sys
+
 import numpy as np
 import math
 import cv2
@@ -50,6 +52,76 @@ def points_are_close(pt1, pt2, thresh=10):
 def get_angle_tol(line_length):
     return abs(np.arctan2(1.9, line_length)) if line_length > 0 else np.pi/2
     
+def get_side_of_tab(start_pt, end_pt, tl_bbox, br_bbox):
+    """ Determine which side of the bounding box a tab neck is on. """
+    cx = (tl_bbox[0] + br_bbox[0]) / 2
+    cy = (tl_bbox[1] + br_bbox[1]) / 2
+    diff_x = abs(start_pt[0] - end_pt[0])
+    diff_y = abs(start_pt[1] - end_pt[1])
+    min_from_bb_x = 0.1 * abs(br_bbox[0] - tl_bbox[0])
+    min_from_bb_y = 0.1 * abs(br_bbox[1] - tl_bbox[1])
+    # print(f"SIDE: {start_pt} -> {end_pt} : diffx = {diff_x}   diffy= {diff_y}  min_from_bbx = {min_from_bb_x:.1f} min_from_bby={min_from_bb_y:.1f} ", end='')
+    # print(f"tl={tl_bbox} br={br_bbox}")
+
+    if diff_x > diff_y: # top or bottom
+        if start_pt[1] < cy and end_pt[1] < cy:
+            if abs(min(start_pt[1], end_pt[1]) - tl_bbox[1]) < min_from_bb_y: return "" # neck of tab/blank is too close to bbox
+            return 'T'  # Top
+        elif start_pt[1] > cy and end_pt[1] > cy:
+            if abs(min(start_pt[1], end_pt[1]) - br_bbox[1]) < min_from_bb_y: return "" # neck of tab/blank is too close to bbox
+            return 'B'  # Bottom
+        else:
+            print(f"\nfl_core: get_side: ERROR: Cannot determine bbox top or bottom side for line segment from {start_pt} to {end_pt}.\n") # left or right
+    else: # left or right
+        if start_pt[0] < cx and end_pt[0] < cx:
+            if abs(min(start_pt[0], end_pt[0]) - tl_bbox[0]) < min_from_bb_x: return "" # neck of tab/blank is too close to bbox
+            return 'L'  # Left
+        elif start_pt[0] > cx and end_pt[0] > cx:
+            if abs(min(start_pt[0], end_pt[0]) - br_bbox[0]) < min_from_bb_x: return "" # neck of tab/blank is too close to bbox
+            return 'R'  # Right
+        else:
+            print(f"\nfl_core: get_side: ERROR: Cannot determine bbox left or right side for line segment from {start_pt} to {end_pt}.\n") # top or bottom
+            sys.exit(1)
+    return ""
+
+def get_side_of_blank(start_pt, end_pt, tl_bbox, br_bbox):
+    """ Determine which side of the bounding box a blank neck is on. """
+    cx = (tl_bbox[0] + br_bbox[0]) / 2
+    cy = (tl_bbox[1] + br_bbox[1]) / 2
+    diff_x = abs(start_pt[0] - end_pt[0])
+    diff_y = abs(start_pt[1] - end_pt[1])
+    max_from_bb_x = 0.2 * abs(br_bbox[0] - tl_bbox[0])
+    max_from_bb_y = 0.2 * abs(br_bbox[1] - tl_bbox[1])
+    #print(f"SIDE: {start_pt} -> {end_pt} : diffx = {diff_x}   diffy= {diff_y}  max_from_bbx = {max_from_bb_x:.1f} max_from_bby={max_from_bb_y:.1f} ", end='')
+    #print(f"tl={tl_bbox} br={br_bbox}")
+    if diff_x > diff_y: # top or bottom
+        # both x cords must be away from left/right edge
+        for x in [start_pt[0], end_pt[0]]:
+            if abs(x-tl_bbox[0]) < max_from_bb_x or abs(x-br_bbox[0]) < max_from_bb_x:
+                return ""
+        if start_pt[1] < cy and end_pt[1] < cy:
+            if abs(min(start_pt[1], end_pt[1]) - tl_bbox[1]) > max_from_bb_y: return "" # neck of tab/blank is too far from bbox
+            return 'T'  # Top
+        elif start_pt[1] > cy and end_pt[1] > cy:
+            if abs(min(start_pt[1], end_pt[1]) - br_bbox[1]) > max_from_bb_y: return "" # neck of tab/blank is too far from bbox
+            return 'B'  # Bottom
+        else:
+            print(f"\nfl_core: get_side: ERROR: Cannot determine bbox top or bottom side for line segment from {start_pt} to {end_pt}.\n") # left or right
+    else: # left or right
+        # both y coords must be away from top/bottom edge
+        for y in [start_pt[1], end_pt[1]]:
+            if abs(y-tl_bbox[1]) < max_from_bb_y or abs(y-br_bbox[1]) < max_from_bb_y:
+                return ""
+        if start_pt[0] < cx and end_pt[0] < cx:
+            if abs(min(start_pt[0], end_pt[0]) - tl_bbox[0]) > max_from_bb_x: return "" # neck of tab/blank is too far from bbox
+            return 'L'  # Left
+        elif start_pt[0] > cx and end_pt[0] > cx:
+            if abs(min(start_pt[0], end_pt[0]) - br_bbox[0]) > max_from_bb_x: return "" # neck of tab/blank is too far from bbox
+            return 'R'  # Right
+        else:
+            print(f"\nfl_core: get_side: ERROR: Cannot determine bbox left or right side for line segment from {start_pt} to {end_pt}.\n") # top or bottom
+            sys.exit(1)
+    return ""
 
 # Calculate angle in radians between the line from start_point to pt and the horizontal axis.
 # Always returns a positive angle between 0 and 2*pi.
@@ -79,6 +151,22 @@ def get_bounding_box_from_lines(lines):
     max_y = max(max(line[0][1], line[1][1]) for line in lines)
 
     return (min_x, min_y), (max_x, max_y)
+
+
+def get_bbox_from_points(points):
+    """
+    Given a list of points, return the bounding box that contains all the points.
+    The bounding box is defined by the top-left and bottom-right corners."""
+    if not points:
+        return None, None
+
+    min_x = min(pt[0] for pt in points)
+    max_x = max(pt[0] for pt in points)
+    min_y = min(pt[1] for pt in points)
+    max_y = max(pt[1] for pt in points)
+
+    return (min_x, min_y), (max_x, max_y)
+
 
 def find_piece_center(img):
     # Find the coordinates of all white pixels
@@ -146,6 +234,12 @@ def draw_lines_on_color_image(image, lines, palette, dx=3, thickness=1):
         cv2.line(image, (int(x1+dx), int(y1)), (int(x2+dx), int(y2)), palette[color_index % len(palette)], thickness=thickness)
         color_index = (color_index + 1) % len(palette)
 
+def draw_poly(image, pts, color=(0,0,255), thickness=4):
+        for i,pt in enumerate(pts):
+            print(f"{i}  {pt}")
+            next_pt = pts[(i+1)%(len(pts))]
+            cv2.line(image, (int(pt[0]), int(pt[1])), (int(next_pt[0]),int(next_pt[1])), color, thickness=thickness)
+
 def draw_triangle(image, pt0, pt1, pt2, color=(0, 255, 0), thickness=1):
     cv2.polylines(image, [np.array([[pt0[0], pt0[1]], [pt1[0], pt1[1]], [pt2[0], pt2[1]]], dtype=np.int32)], isClosed=True, color=color, thickness=thickness)   
 
@@ -156,7 +250,10 @@ def show_image(img, str="Image", max=1000, wait_for_key=True):
     resized_image = cv2.resize(img, (0, 0), fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
     cv2.imshow(str, resized_image)
     if wait_for_key:
-        cv2.waitKey(0)
+        k = cv2.waitKey(0)
+        if k == 27:  # ESC key
+            cv2.destroyAllWindows()
+            sys.exit(1)
 
 def print_histogram(values, bin_labels):
     scale = max(values)/60
