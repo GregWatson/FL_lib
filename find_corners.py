@@ -35,12 +35,11 @@ import cv2
 # The angle is the EXTERNAL angle (of a polygon) between the two lines that form the corner.
 def cornerness_function(pt0, pt1, pt2, angle, rel_d_to_c, keep_outs, debug=False):
 
-    # return 1 if either point falls in the corner keep-out zones, otherwise return 0. 
-    def get_keep_out_effect(pta, ptb, ptc, keep_outs):
-        for pt in (pta, ptb, ptc):
-            for (xmin, ymin), (xmax, ymax) in keep_outs:
-                if pt[0] > xmin and pt[0] <= xmax: return 1
-                if pt[1] > ymin and pt[1] <= ymax: return 1
+    # return 1 if point falls in the corner keep-out zones, otherwise return 0. 
+    def get_keep_out_effect(pt, keep_outs):
+        x,y = pt
+        for (xmin, ymin), (xmax, ymax) in keep_outs:
+            if x > xmin and x <= xmax and y > ymin and y <= ymax: return 1
         return 0
 
     l1 = get_distance_between_2_points(pt0, pt1)
@@ -55,7 +54,7 @@ def cornerness_function(pt0, pt1, pt2, angle, rel_d_to_c, keep_outs, debug=False
         dist_to_corner_effect = 100 * (5 ** (-rel_d_to_c)) # the closer to the corner of the image, the more likely it is to be a real corner of the piece rather than noise in the middle
         keep_out_effect = 0
         if keep_outs:
-            keep_out_effect = 100 * get_keep_out_effect(pt0, pt1, pt2, keep_outs) 
+            keep_out_effect = 100 * get_keep_out_effect(pt1, keep_outs) 
 
         corner_ness = angle_effect + length_effect + dist_to_corner_effect - keep_out_effect
 
@@ -134,7 +133,7 @@ def find_corners(lines_found, tl_bbox=None, br_bbox=None, end_to_end_dist_thresh
     keep_outs = blank_keep_outs + tab_keep_outs
 
     # debug by displaying an image with points joined by arrows in order
-    if debug and len(polygon) > 1:
+    if debug and len(polygon) > 2:
         SIZE = 500
         img = np.zeros((SIZE, SIZE,3), dtype=np.uint8)
         for i, point in enumerate(polygon):
