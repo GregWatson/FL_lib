@@ -20,6 +20,11 @@ def rotate_point(point, center, angle_rad):
     new_y = sin_a * (x - cx) + cos_a * (y - cy) + cy
     return (new_x, new_y)
 
+def rotate_and_transform_point(point, center, angle_rad, inverse_transform_fn):
+    pt_rot = rotate_point(point, center, angle_rad)
+    pt_transform = inverse_transform_fn(map(int,pt_rot))
+    return pt_transform
+
 def rotate_line(line, center, angle_rad):
     # Rotate a line (defined by two points) around a center by a given angle in radians.
     # Returns the new coordinates of the line after rotation.
@@ -240,8 +245,8 @@ def draw_poly(image, pts, color=(0,0,255), thickness=4):
             next_pt = pts[(i+1)%(len(pts))]
             cv2.line(image, (int(pt[0]), int(pt[1])), (int(next_pt[0]),int(next_pt[1])), color, thickness=thickness)
 
-def draw_triangle(image, pt0, pt1, pt2, color=(0, 255, 0), thickness=1):
-    cv2.polylines(image, [np.array([[pt0[0], pt0[1]], [pt1[0], pt1[1]], [pt2[0], pt2[1]]], dtype=np.int32)], isClosed=True, color=color, thickness=thickness)   
+def draw_triangle(image, pts3, color=(0, 255, 0), thickness=1):
+    cv2.polylines(image, [np.array([[pts3[0][0], pts3[0][1]], [pts3[1][0], pts3[1][1]], [pts3[2][0], pts3[2][1]]], dtype=np.int32)], isClosed=True, color=color, thickness=thickness)   
 
 def show_image(img, str="Image", max=1000, wait_for_key=True):
     x_scale_factor = 1000.0 / img.shape[1]
