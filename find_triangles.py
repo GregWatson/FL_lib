@@ -1,4 +1,4 @@
-from fl_core import point_to_infinite_line_distance, show_image, get_adjacent_points, draw_triangle
+from fl_core import point_to_infinite_line_distance, show_image, get_adjacent_points, get_distance_between_2_points
 
 # Returns the triangles for each edge.
 # A triangle is [ 3 points] - formed from the two corners of the side and the point furthest away from the line between the two corners.
@@ -32,7 +32,9 @@ def find_triangles_from_corners(img, corners, debug=False):
         # Thresh is grey level. If a pixel is darker than this value, it is ignored.
         side_name, corner1, corner2, side_midpoint, side_normal = side
         img_w, img_h = img.shape[1], img.shape[0]
+        min_dist_from_corner = min(img_h, img_w)//10
 
+        print(f"Process side {side_name} with midpoint {side_midpoint} ")
         # Note: could optimize performance by precomputing coefficients A, B, and C in the line 
         # equation Ax + By + C = 0 for the line defined by corner1 and corner2, and then use those 
         # coefficients to compute the distance from each point to the line. But for now, we'll just 
@@ -43,7 +45,7 @@ def find_triangles_from_corners(img, corners, debug=False):
         # This is a brute force approach, but it should be fast enough for our purposes since the image 
         # is small and we only have 4 sides to check. 
         sx,sy = side_midpoint
-        while sx >= 0 and sx < img_w and sy >= 0 and sy < img_h and img[sy][sx] == 0:
+        while sx >= 0 and sx < img_w and sy >= 0 and sy < img_h and img[sy][sx] < thresh:
             sx += side_normal[0]
             sy += side_normal[1]
         max_dist = point_to_infinite_line_distance((sx, sy), corner1, corner2)
@@ -52,27 +54,42 @@ def find_triangles_from_corners(img, corners, debug=False):
 
         # Now expand out from the point we found to find other points and find the furthest.
         unchecked_points = get_adjacent_points(img, (sx, sy), thresh=thresh)
+        # print(f"Side {side_name} starts at {sx},{sy}  dist={max_dist:.2f}  unchecked = {len(unchecked_points)}")
+
 
         while (len(unchecked_points) > 0 and num_to_check > 0):
             px, py = unchecked_points.pop(0)
+            if side_name == 'W': 
+                print(f"{side_name} {num_to_check}: Checking at point {px},{py}. val = {img[py][px]}")
             if img[py][px] >= thresh:
-                img[py][px] = 0 # mark as checked
+                num_to_check -= 1
+                # Check not too close too corner
+                skip = False
+                for c in [corner1, corner2]:
+                    dist_from_corner = get_distance_between_2_points((px, py), c)
+                    if dist_from_corner < min_dist_from_corner:
+                        skip  = True
+                if skip: continue
                 dist = point_to_infinite_line_distance((px, py), corner1, corner2)
+                #if side_name == 'W': 
+                #    print(f"{side_name} {num_to_check}: Checking at point {px},{py}. D={dist}  (max = {max_dist} )  dist_to_C = {dist_from_corner} (min={min_dist_from_corner})")
                 if dist > max_dist:
                     max_dist = dist
                     furthest_point = (px, py)
-                num_to_check -= 1
                 unchecked_points.extend(get_adjacent_points(img, (px, py), thresh=thresh))
+            img[py][px] = 0 # mark as checked
 
         return furthest_point if max_dist > min_distance else None
 
     work_img = img.copy()
     triangles = []
     for side in sides:
-        furthest_point = find_furthest_point_for_side(work_img, side, thresh=20, num_to_check=min(img_w, img_h)//2)
-        if furthest_point:
+        furthest_point = find_furthest_point_for_side(work_img, side, thresh=20, num_to_check=max(img_w, img_h))
+        if furthest_point: # Tab or Blank
             triangles.append((side[1], side[2], furthest_point))
-        else:
+        else: # Edge
             triangles.append([side[1], side[2]])
+
+    # show_image(work_img, "Triangles", max=1000, wait_for_key=True)
 
     return triangles

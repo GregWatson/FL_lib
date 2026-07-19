@@ -76,7 +76,9 @@ def get_side_of_tab(start_pt, end_pt, tl_bbox, br_bbox):
             if abs(min(start_pt[1], end_pt[1]) - br_bbox[1]) < min_from_bb_y: return "" # neck of tab/blank is too close to bbox
             return 'B'  # Bottom
         else:
-            print(f"\nfl_core: get_side: ERROR: Cannot determine bbox top or bottom side for line segment from {start_pt} to {end_pt}.\n") # left or right
+            #print(f"\nfl_core: get_side: ERROR: Cannot determine bbox top or bottom side for line segment from {start_pt} to {end_pt}.\n") # left or right
+            #k = cv2.waitKey(0)
+            pass
     else: # left or right
         if start_pt[0] < cx and end_pt[0] < cx:
             if abs(min(start_pt[0], end_pt[0]) - tl_bbox[0]) < min_from_bb_x: return "" # neck of tab/blank is too close to bbox
@@ -85,8 +87,9 @@ def get_side_of_tab(start_pt, end_pt, tl_bbox, br_bbox):
             if abs(min(start_pt[0], end_pt[0]) - br_bbox[0]) < min_from_bb_x: return "" # neck of tab/blank is too close to bbox
             return 'R'  # Right
         else:
-            print(f"\nfl_core: get_side: ERROR: Cannot determine bbox left or right side for line segment from {start_pt} to {end_pt}.\n") # top or bottom
-            sys.exit(1)
+            #print(f"\nfl_core: get_side: ERROR: Cannot determine bbox left or right side for line segment from {start_pt} to {end_pt}.\n") # top or bottom
+            #k = cv2.waitKey(0)
+            pass
     return ""
 
 def get_side_of_blank(start_pt, end_pt, tl_bbox, br_bbox):
@@ -111,7 +114,9 @@ def get_side_of_blank(start_pt, end_pt, tl_bbox, br_bbox):
             if abs(min(start_pt[1], end_pt[1]) - br_bbox[1]) > max_from_bb_y: return "" # neck of tab/blank is too far from bbox
             return 'B'  # Bottom
         else:
-            print(f"\nfl_core: get_side: ERROR: Cannot determine bbox top or bottom side for line segment from {start_pt} to {end_pt}.\n") # left or right
+            #print(f"\nfl_core: get_side: ERROR: Cannot determine bbox top or bottom side for line segment from {start_pt} to {end_pt}.\n") # left or right
+            #k = cv2.waitKey(0)
+            pass
     else: # left or right
         # both y coords must be away from top/bottom edge
         for y in [start_pt[1], end_pt[1]]:
@@ -124,8 +129,9 @@ def get_side_of_blank(start_pt, end_pt, tl_bbox, br_bbox):
             if abs(min(start_pt[0], end_pt[0]) - br_bbox[0]) > max_from_bb_x: return "" # neck of tab/blank is too far from bbox
             return 'R'  # Right
         else:
-            print(f"\nfl_core: get_side: ERROR: Cannot determine bbox left or right side for line segment from {start_pt} to {end_pt}.\n") # top or bottom
-            sys.exit(1)
+            #print(f"\nfl_core: get_side: ERROR: Cannot determine bbox left or right side for line segment from {start_pt} to {end_pt}.\n") # top or bottom
+            #k = cv2.waitKey(0)
+            pass
     return ""
 
 # Calculate angle in radians between the line from start_point to pt and the horizontal axis.
