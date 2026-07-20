@@ -6,15 +6,20 @@ class J_Piece:
     Info can be pre-rotation (before we were able to rate the image to a 'stright' rotation)
     or post-rotation.
     """
-    pre: dict
-    post: dict
+    info: dict | None
+    orig: dict
+    rot: dict
 
-    def __init__(self):
-        self.pre = {
+    def __init__(self, info=None):
+        self.info = info
+        self.orig = {
             'user_image': None
         }
-        self.post = {}
+        self.rot = {}
         pass
+
+
+
 class Jigsaw:
     images: dict
     pieces: list[ J_Piece ]

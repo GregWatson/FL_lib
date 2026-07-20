@@ -59,8 +59,8 @@ def find_triangles_from_corners(img, corners, debug=False):
 
         while (len(unchecked_points) > 0 and num_to_check > 0):
             px, py = unchecked_points.pop(0)
-            if side_name == 'W': 
-                print(f"{side_name} {num_to_check}: Checking at point {px},{py}. val = {img[py][px]}")
+            #if side_name == 'W': 
+            #    print(f"{side_name} {num_to_check}: Checking at point {px},{py}. val = {img[py][px]}")
             if img[py][px] >= thresh:
                 num_to_check -= 1
                 # Check not too close too corner

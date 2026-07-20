@@ -20,7 +20,7 @@ def get_piece_info(pre_processed_image, min_area=100, debug=False):
                       - 'centroid': Tuple of (cx, cy) representing the center of mass of the piece.
     """
     # Find contours
-    # cv2.RETR_EXTERNAL retrieves only the outermost contours
+    # cv2.RETR_EXTERNAL retrieves only the outer contours for each piece.
     contours, _ = cv2.findContours(pre_processed_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
     pieces = []
