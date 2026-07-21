@@ -22,7 +22,9 @@ import cv2
 # - br_bbox: bottom right corner of the bounding box of the piece (x,y)
 # - end_to_end_dist_thresh: maximum distance between the end of one line and the 
 #   start of the next line to consider them connected (e.g. 20 pixels)
-# Returns a list of 4 corners in [row][column] format, where each corner is represented as a tuple of (corner_x, point, angle_diff) where:
+# 
+# Returns a list of 4 corners in [row][column] format, where each corner is represented as a tuple of (corner_x, point, angle_diff).
+#   The order of the corners should be [top-left, top-right,bottom-left,bottom-right].
 # - corner_x is a value that represents how "corner-like" this corner is, which is a function of the 
 #   angle difference and the lengths of the lines. We can use this to sort the corners and only keep the most "corner-like" corners.
 # - point is the (int(x), int(y)) point of the corner (e.g. the end of line1 or the start of line2, or we could compute an intersection point 
@@ -171,7 +173,7 @@ def find_corners(lines_found, tl_bbox=None, br_bbox=None, end_to_end_dist_thresh
     center_x = np.mean([point[0] for _, point, _ in corners])
     center_y = np.mean([point[1] for _, point, _ in corners])
     for corner in corners:
-        _,point,_ = corner
+        ness,point,rotation_angle = corner
         # print(f"Evaluating corner with point={point}")
         quad_x = 0 if point[0] < center_x else 1
         quad_y = 0 if point[1] < center_y else 1
@@ -179,7 +181,7 @@ def find_corners(lines_found, tl_bbox=None, br_bbox=None, end_to_end_dist_thresh
             final_corners[quad_y][quad_x] = corner
             quandrant_used[quad_y][quad_x] = True
             if debug:
-                print(f"Adding corner at point {point} with corner_x value {corner[0]:.2f} and angle difference {np.degrees(corner[2]):.2f} degrees to final corners.")
+                print(f"Adding corner at point {point}. Corner-ness: {ness:.2f} and angle difference {np.degrees(rotation_angle):.2f} degrees to final corners.")
 
     return final_corners, blank_keep_outs, tab_keep_outs
 

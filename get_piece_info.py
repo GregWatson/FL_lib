@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from fl_types import P_Info, SideType
 
 def get_piece_info(pre_processed_image, min_area=100, debug=False):
     """
@@ -12,12 +13,7 @@ def get_piece_info(pre_processed_image, min_area=100, debug=False):
                                  filtering out small noise contours. Defaults to 100.
 
     Returns:
-        list of dict: A list containing information for each detected puzzle piece.
-                      Each piece's dictionary has the following keys:
-                      - 'box': Tuple of (x, y, w, h) representing the upright bounding box.
-                      - 'contour': The contour array found by OpenCV.
-                      - 'area': The float area of the contour.
-                      - 'centroid': Tuple of (cx, cy) representing the center of mass of the piece.
+        struct P_Info.  (See fl_types.py)
     """
     # Find contours
     # cv2.RETR_EXTERNAL retrieves only the outer contours for each piece.
@@ -43,12 +39,12 @@ def get_piece_info(pre_processed_image, min_area=100, debug=False):
             cx = int(x + w / 2)
             cy = int(y + h / 2)
             
-        piece_info = {
-            'box': (x, y, w, h),
-            'contour': contour,
-            'area': area,
-            'centroid': (cx, cy)
-        }
+        piece_info = P_Info()
+        # piece_info.id is automatically set by the class.
+        piece_info.box = (x, y, w, h)
+        piece_info.contour = contour
+        piece_info.area = int(area)
+        piece_info.centroid = (cx, cy)
         
         pieces.append(piece_info)
         
