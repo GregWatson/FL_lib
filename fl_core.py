@@ -149,6 +149,14 @@ def get_angle_diff(angle1, angle2):
         diff = abs(2*np.pi - diff)
     return diff
 
+# Get angle between 2 lines defined by end points:
+# Line1: p1-p2  Line2: pt2-pt3
+def get_angle_between_3_points(pt1, pt2, pt3):
+    a1 = get_angle(pt2, pt1)
+    a2 = get_angle(pt2,pt3)
+    return get_angle_diff(a1,a2)
+
+
 # Get the bounding box from a list of lines. The bounding box is defined by the top-left and bottom-right corners.
 # the argument lines is a list of (start_pt, end_pt) where each point is (x,y)
 # Returns two values tl_pt and br_pt which are both (x,y) points

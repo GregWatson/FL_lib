@@ -1,8 +1,11 @@
 from fl_core import point_to_infinite_line_distance, show_image, get_adjacent_points, get_distance_between_2_points
+from fl_types import SideType, P_Triangle
 
 # Returns the triangles for each edge.
-# A triangle is [ 3 points] - formed from the two corners of the side and the point furthest away from the line between the two corners.
-# If it's a straight line then it just returns [ 2 points ] (the corners)
+# A triangle is [ 3 points] - formed from the two corners of the side and the point furthest away from the line 
+# formed between the two corners.
+# If it's a straight line (Edge) then it just returns [ 2 points ] (the corners)
+# For each triangle it also returns the edge type (EDGE, TAB, or BLANK)
 
 # Params:
 # img: a cv2 image that has only the edges of the piece.
@@ -33,8 +36,9 @@ def find_triangles_from_corners(img, corners, debug=False):
         side_name, corner1, corner2, side_midpoint, side_normal = side
         img_w, img_h = img.shape[1], img.shape[0]
         min_dist_from_corner = min(img_h, img_w)//10
+        tab_min_dist_from_edge = min(img_h, img_w)//20
 
-        print(f"Process side {side_name} with midpoint {side_midpoint} ")
+        # print(f"Process side {side_name} with midpoint {side_midpoint} ")
         # Note: could optimize performance by precomputing coefficients A, B, and C in the line 
         # equation Ax + By + C = 0 for the line defined by corner1 and corner2, and then use those 
         # coefficients to compute the distance from each point to the line. But for now, we'll just 
@@ -79,17 +83,26 @@ def find_triangles_from_corners(img, corners, debug=False):
                 unchecked_points.extend(get_adjacent_points(img, (px, py), thresh=thresh))
             img[py][px] = 0 # mark as checked
 
-        return furthest_point if max_dist > min_distance else None
+        return (furthest_point, max_dist, tab_min_dist_from_edge) if max_dist > min_distance else (0,0,0)
 
     work_img = img.copy()
     triangles = []
+    edge_types = []
     for side in sides:
-        furthest_point = find_furthest_point_for_side(work_img, side, thresh=20, num_to_check=max(img_w, img_h))
+        (furthest_point, max_dist, tab_min_dist_from_edge) = find_furthest_point_for_side(work_img, side, thresh=20, num_to_check=max(img_w, img_h))
         if furthest_point: # Tab or Blank
-            triangles.append((side[1], side[2], furthest_point))
+            triangles.append(P_Triangle([side[1], side[2], furthest_point]))
+            if max_dist <= tab_min_dist_from_edge:
+                edge_types.append(SideType.TAB)
+            else:
+                edge_types.append(SideType.BLANK)
+
+
         else: # Edge
-            triangles.append([side[1], side[2]])
+            triangles.append(P_Triangle([side[1], side[2]]))
+            edge_types.append(SideType.EDGE)
+
 
     # show_image(work_img, "Triangles", max=1000, wait_for_key=True)
 
-    return triangles
+    return triangles, edge_types
