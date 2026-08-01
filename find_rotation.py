@@ -107,7 +107,8 @@ def get_main_angle(angle_bins, max1, num_adj=1, debug=False):
 # Also return the lines found - lines are returned as a list of 
 # tuples of [(x1, y1), (x2, y2)] for the start and end points of each line.
 
-def find_rotation(img, cx, cy, debug=False):
+def find_rotation(img: np.ndarray, cx: int, cy: int, debug=False):
+
     if img is None:
         print("Error: Image is None")
         return 0
@@ -121,7 +122,7 @@ def find_rotation(img, cx, cy, debug=False):
 
     # Find a set of lines for the outline using my own algorithm.
     len_thresh = max(cx, cy) * 0.017
-    full_lines = find_lines(gray, len_thresh=len_thresh, debug=debug)
+    full_lines = find_lines(gray, len_thresh=int(len_thresh), debug=debug)
     lines = []
     
     # Get lines as just start and end points for easier processing.

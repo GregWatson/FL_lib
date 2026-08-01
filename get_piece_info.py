@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from fl_types import P_Info, SideType
 
-def get_piece_info(pre_processed_image, min_area=100, debug=False):
+def get_piece_info(pre_processed_image, min_area=100, debug=False) -> list [P_Info]:
     """
     Analyzes a pre-processed binary image (where puzzle pieces are white foreground (255)
     and the background is black (0)) to detect individual puzzle pieces.

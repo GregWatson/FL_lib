@@ -54,7 +54,7 @@ class P_Info:
     id: int | None = None # A unique numeric ID for the piece.
     box: tuple | None = None # Bounding box for the piece in ORIGINAL image.
     contour: np.ndarray | None = None # Numpy array of points that form the contour
-    sides: list [SideType] | None = []
+    side_types: list [SideType] = []
     area: int | None = None # Area of the piece in pixels in original image.
     centroid: tuple | None = None # Centroid in original image
 
@@ -70,7 +70,7 @@ class P_Info:
         self.id = P_Info.__instance_count
         self.box = None
         self.contour = None
-        self.sides = []
+        self.side_types = []
         self.area = None
         self.centroid = None
 
@@ -81,20 +81,28 @@ class J_Piece:
     Info can be pre-rotation (before we were able to rate the image to a 'straight' rotation)
     or post-rotation.
     """
-    info: P_Info | None
+    info: P_Info 
     orig: dict 
     rot: dict
 
     def __init__(self, info=None):
-        self.info = info
+        if info is None:
+            self.info = P_Info()
+        else: self.info = info
         self.orig = {
-            'user_image': None # Image or None. Orig for *only* this piece.
+            'user_image': None, # Image or None. Orig for *only* this piece. Pre-rotation
+            'inverse_transform_fn': None, # Inverse transform matrix to place point back in full original image
+            'rot_center': None, # Center of rotation for user_image
         }
-        self.rot = {
+        self.rot = { # Info of post-rotation image
+            'rotation_angle_rad': None, # Rotation angle in radians
             'edges_image_grey': None, # Rotated edges only (grey)
             'img_w': None, # Width of the image
             'img_h': None,  # Height of image
-            'triangles': []
+            'corners': None, # List of 2 lists of 2 corners: [[TL, TR], [BL, BR]]. Each is (corner-ness, point(x,y), outer angle in radians)
+            'blank_keep_outs': None, # List of areas where blanks occur. Each is (top left point, bottom right point)
+            'tab_keep_outs': None, # List of areas where tabs occur. Each is (top left point, bottom right point)
+            'triangles': [] # List of triangles. (P_Triangle)
         }
         pass
 
