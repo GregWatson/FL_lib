@@ -1,4 +1,4 @@
-from fl_core import point_to_infinite_line_distance, show_image, get_adjacent_points, get_distance_between_2_points
+from fl_core import point_to_infinite_line_distance, get_adjacent_points, get_distance_between_2_points
 from fl_types import SideType, P_Triangle
 
 # Returns the triangles for each edge.
@@ -23,12 +23,14 @@ from fl_types import SideType, P_Triangle
 def find_triangles_from_corners(img, corners, debug=False):
 
     img_w, img_h = img.shape[1], img.shape[0]
+    cx = img_w // 2 # center
+    cy = img_h // 2
 
     # (side_name, corner1, corner2, side_midpoint, side_normal)
-    sides = [ ('N', corners[0][0][1], corners[0][1][1], (img_w//2, 0), (0,1)),
-              ('E', corners[0][1][1], corners[1][1][1], (img_w-1, img_h//2), (-1,0)),
-              ('S', corners[1][0][1], corners[1][1][1], (img_w//2, img_h-1), (0,-1)),
-              ('W', corners[0][0][1], corners[1][0][1], (0, img_h//2), (1,0)) ]
+    sides = [ ('N', corners[0][0][1], corners[0][1][1], (cx, 0), (0,1)),
+              ('E', corners[0][1][1], corners[1][1][1], (img_w-1, cy), (-1,0)),
+              ('S', corners[1][0][1], corners[1][1][1], (cx, img_h-1), (0,-1)),
+              ('W', corners[0][0][1], corners[1][0][1], (0, cy), (1,0)) ]
 
     # num_to_check: number of points to check starting from the midpoint of the side and moving outwards.
     def find_furthest_point_for_side(img, side, thresh=20, num_to_check=100, min_distance=20):
@@ -44,10 +46,9 @@ def find_triangles_from_corners(img, corners, debug=False):
         # coefficients to compute the distance from each point to the line. But for now, we'll just 
         # use the point_to_infinite_line_distance function.
 
-        # First start at the line midpoint and head in the direction of the normal to the side, and then expand 
-        # outwards in a spiral pattern to find the furthest point from the line defined by corner1 and corner2.
-        # This is a brute force approach, but it should be fast enough for our purposes since the image 
-        # is small and we only have 4 sides to check. 
+        # First start at the line midpoint and head in the direction of the normal to the side, until we find 
+        # a pixel that is on (piece contour). Then follow the contour in both directions to find maxima and minima.
+        
         sx,sy = side_midpoint
         while sx >= 0 and sx < img_w and sy >= 0 and sy < img_h and img[sy][sx] < thresh:
             sx += side_normal[0]
@@ -83,26 +84,26 @@ def find_triangles_from_corners(img, corners, debug=False):
                 unchecked_points.extend(get_adjacent_points(img, (px, py), thresh=thresh))
             img[py][px] = 0 # mark as checked
 
-        return (furthest_point, max_dist, tab_min_dist_from_edge) if max_dist > min_distance else (0,0,0)
+        # See if tab or blank
+        dist_center_to_corner_line = point_to_infinite_line_distance((cx,cy), corner1, corner2)
+        dist_center_to_point = get_distance_between_2_points((cx,cy), furthest_point)
+        if dist_center_to_corner_line < dist_center_to_point:
+            st = SideType.TAB
+        else:
+            st = SideType.BLANK
+
+        return (furthest_point, st) if max_dist > min_distance else (0,SideType.EDGE)
 
     work_img = img.copy()
     triangles = []
-    edge_types = []
+    side_types = []
     for side in sides:
-        (furthest_point, max_dist, tab_min_dist_from_edge) = find_furthest_point_for_side(work_img, side, thresh=20, num_to_check=max(img_w, img_h))
+        (furthest_point, side_type) = find_furthest_point_for_side(work_img, side, thresh=20, num_to_check=max(img_w, img_h))
         if furthest_point: # Tab or Blank
             triangles.append(P_Triangle([side[1], side[2], furthest_point]))
-            if max_dist <= tab_min_dist_from_edge:
-                edge_types.append(SideType.TAB)
-            else:
-                edge_types.append(SideType.BLANK)
-
-
+            side_types.append(side_type)
         else: # Edge
             triangles.append(P_Triangle([side[1], side[2]]))
-            edge_types.append(SideType.EDGE)
+            side_types.append(SideType.EDGE)
 
-
-    # show_image(work_img, "Triangles", max=1000, wait_for_key=True)
-
-    return triangles, edge_types
+    return triangles, side_types

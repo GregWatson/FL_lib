@@ -90,6 +90,7 @@ def process_piece(piece: J_Piece, pre_processed_image: np.ndarray, debug:bool=Fa
     # Get triangles formed by corners and the point furthest from the line between 2 corners.
     # Operate on rotated edge image.
     triangles, edge_types = find_triangles_from_corners(rotated_edges, corners, debug=debug)
+
     if len(triangles) == 4:
         for tri, et in zip(triangles, edge_types):
             piece.rot['triangles'].append(tri)
