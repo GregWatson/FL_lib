@@ -7,6 +7,11 @@ from fl_core import get_angle_between_3_points
 def line_len(pt1, pt2):
     return sqrt((pt1[0] - pt2[0])**2 + (pt1[1] - pt2[1])**2)
 
+class PieceType(Enum):
+    CORNER = 0
+    EDGE = 1
+    MIDDLE = 2
+
 class SideType(Enum):
     EDGE = 0 # Edge of the puzzle
     TAB = 1 # Outward calibration
@@ -57,7 +62,7 @@ class P_Info:
     side_types: list [SideType] = []
     area: int | None = None # Area of the piece in pixels in original image.
     centroid: tuple | None = None # Centroid in original image
-
+    piece_type: PieceType | None = None # Type of the piece
     # Private class attribute tracking the count
     __instance_count = 0
 
@@ -73,6 +78,7 @@ class P_Info:
         self.side_types = []
         self.area = None
         self.centroid = None
+        self.piece_type = None # CORNER, EDGE, MIDDLE
 
         P_Info.__instance_count += 1
 
@@ -105,6 +111,15 @@ class J_Piece:
             'triangles': [] # List of triangles. (P_Triangle)
         }
         pass
+
+    def has_an_edge(self):
+        return self.info.side_types and len(self.info.side_types) == 4 and SideType.EDGE in self.info.side_types
+
+    def side_index_opposite(self, side_index):
+        return (side_index + 2) % 4
+
+    def side_type_opposite(self, side_index):
+        return self.info.side_types[self.side_index_opposite(side_index)]
 
 
 

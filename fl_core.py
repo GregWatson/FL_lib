@@ -255,7 +255,6 @@ def draw_lines_on_color_image(image, lines, palette, dx=3, thickness=1):
 
 def draw_poly(image, pts, color=(0,0,255), thickness=4):
         for i,pt in enumerate(pts):
-            print(f"{i}  {pt}")
             next_pt = pts[(i+1)%(len(pts))]
             cv2.line(image, (int(pt[0]), int(pt[1])), (int(next_pt[0]),int(next_pt[1])), color, thickness=thickness)
 

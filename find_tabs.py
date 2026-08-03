@@ -225,7 +225,7 @@ def find_tab_areas(poly_points, outer_angles, tl_bbox, br_bbox, blank_keep_outs,
                 tab_points.append(poly_points[p]) # extend one more point to ensure that the keepout area is large enough to cover the tab area.
                 # print(f"**** Checking {len(tab_points)} Tab points ending at index {p}")
                 if tab_points_are_valid(tab_points, tl_bbox, br_bbox):
-                    print(f"Checking Tab bbox of {len(tab_points)} points. Indexes: {p-len(tab_points)+1} -> {p}")
+                    # print(f"Checking Tab bbox of {len(tab_points)} points. Indexes: {p-len(tab_points)+1} -> {p}")
 
                     keepout = get_bbox_from_points(tab_points)
                     side = get_side_of_tab(tab_points[0], tab_points[-1], tl_bbox, br_bbox) # L,R,T,B(ottom)

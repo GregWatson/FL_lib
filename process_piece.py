@@ -78,7 +78,7 @@ def process_piece(piece: J_Piece, pre_processed_image: np.ndarray, debug:bool=Fa
 
     # Find the corners of the piece
     corners, blank_keep_outs, tab_keep_outs = find_corners(rotated_lines, (tl_x, tl_y), (br_x, br_y), end_to_end_dist_thresh=20, debug=debug)
-    print(f"Corners are: {corners}")
+    # print(f"Corners are: {corners}")
 
     if len(corners) == 2:
         piece.rot['corners'] = corners
@@ -89,12 +89,13 @@ def process_piece(piece: J_Piece, pre_processed_image: np.ndarray, debug:bool=Fa
     
     # Get triangles formed by corners and the point furthest from the line between 2 corners.
     # Operate on rotated edge image.
-    triangles, edge_types = find_triangles_from_corners(rotated_edges, corners, debug=debug)
-
+    triangles, side_types, piece_type = find_triangles_from_corners(rotated_edges, corners, debug=debug)
+    if not triangles or not side_types: return False
     if len(triangles) == 4:
-        for tri, et in zip(triangles, edge_types):
+        for tri, et in zip(triangles, side_types):
             piece.rot['triangles'].append(tri)
             piece.info.side_types.append(et)
+            piece.info.piece_type = piece_type
     else:
         return False
 
