@@ -1,5 +1,7 @@
 import numpy as np
 from fl_types import J_Piece, PieceType, SideType
+from show_matching_pair import show_matching_pair
+
 
 def find_best_match(piece: J_Piece, pieces: list[J_Piece]) -> J_Piece | None:
 
@@ -45,6 +47,7 @@ def find_best_match(piece: J_Piece, pieces: list[J_Piece]) -> J_Piece | None:
 
     best_target_piece = None
     best_dist = float('inf')
+    best_target_s_idx = None
 
     for target_piece in possibles:
         if matching_piece_type_has_edge and not target_piece.has_an_edge():
@@ -67,23 +70,87 @@ def find_best_match(piece: J_Piece, pieces: list[J_Piece]) -> J_Piece | None:
 
             # Calculate how well target_triangle matches chosen_triangle
             target_triangle = target_piece.rot['triangles'][t_s_idx]
-            
+
+            # Show angles.
+            # print(f"Piece {piece.info.id} angles: ",end='')
+            # for angle in chosen_triangle.angles: print(f"{angle:4.2f} ",end='')
+            # print(f"\nPiece {target_piece.info.id} angles: ", end='')
+            # for angle in target_triangle.angles: print(f"{angle:4.2f} ",end='')
+            # print()
+
+            angle_diff = sum(abs(chosen_triangle.angles[i] - target_triangle.angles[i]) for i in range(3)) * 100
+
             # Base length difference
             base_diff = abs(chosen_triangle.lengths[2] - target_triangle.lengths[2])
-            # Leg lengths difference (considering both alignments)
-            leg_diff_1 = abs(chosen_triangle.lengths[0] - target_triangle.lengths[0]) + abs(chosen_triangle.lengths[1] - target_triangle.lengths[1])
-            leg_diff_2 = abs(chosen_triangle.lengths[0] - target_triangle.lengths[1]) + abs(chosen_triangle.lengths[1] - target_triangle.lengths[0])
-            leg_diff = min(leg_diff_1, leg_diff_2)
+            # Leg lengths difference
+
+            leg_diff = abs(chosen_triangle.lengths[0] - target_triangle.lengths[0]) + abs(chosen_triangle.lengths[1] - target_triangle.lengths[1])
             
-            dist = base_diff + leg_diff
+            dist = base_diff + leg_diff + angle_diff
+            print(f"DIST:{dist:.1f}  ---  Base diff: {base_diff:.1f} lef_diff: {leg_diff:.1f} Angle diff: {angle_diff:.1f}")
             if dist < best_dist:
                 best_dist = dist
                 best_target_piece = target_piece
+                best_target_s_idx = t_s_idx
                 print(f"Found better match: piece {target_piece.info.id}  best_dist:{best_dist} ")
 
     if best_target_piece is not None:
         print(f"Found best matching piece: ID {best_target_piece.info.id} with score {best_dist:.2f}")
+        show_matching_pair(piece, chosen_side_idx, best_target_piece, best_target_s_idx)
         return best_target_piece
 
     print("No matching piece met the criteria.")
     return None
+
+# Compute the quality of the match for the given piece, given the surrounding pieces.
+def get_match_quality(piece, surrounding_pieces):
+
+    match_value = 0
+    # For each side of the piece, compute a match value based on how well it fits
+    # the adjacent piece.
+
+    for dir, other_piece in surrounding_pieces.items(): # dir in NESW
+        if not other_piece: continue
+        print(f"Trying dir {dir} against piece {other_piece.info.id}")
+
+        # FIX THIS HERE
+
+
+
+    return match_value
+
+# Given the one-to-four pieces surrounding an unplaced location, as well as the side
+# constraints of that location, find the best matching piece from a list of possibles.
+# Return the piece and the desired rotation dictionary.
+def find_best_match_given_surrounding_pieces(surrounding_pieces, side_constraints, possibles):
+    best_piece = None
+    best_score = float(0.0)
+    best_dir = None  # rotation for the best piece.
+
+
+    for possible in possibles:
+        # get all the possible (1-4) different piece rotations that meet the constraints.
+        possible_dirs = possible.get_dirs_by_constraints(side_constraints)
+        if not possible_dirs: continue
+        # Have at LEAST one rotation that meets the constraints.
+
+        # Save original rotation (dir)
+        orig_dir = possible.dir.copy()
+
+        for possible_dir in possible_dirs:
+            # Set the piece direction
+            possible.set_direction(possible_dir)
+
+            # calculate the quality of the match using the surrounding pieces.
+            match_quality = get_match_quality(possible, surrounding_pieces)
+            if match_quality > best_score:
+                best_score = match_quality
+                best_piece = possible
+                best_dir = possible_dir
+
+        # restore original dir.
+        possible.set_direction(orig_dir)
+
+    return (best_piece, best_dir, best_score)
+
+

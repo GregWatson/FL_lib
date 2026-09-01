@@ -13,8 +13,13 @@ def pre_process_image(img, debug=False):
     """
     # - Convert to greyscale
         # Convert the image to simple binary format (grayscale) if color
-    if len(img.shape) == 3 and img.shape[2] == 3:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    if len(img.shape) == 3:
+        if img.shape[2] == 3:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        elif img.shape[2] == 4:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)
+        else:
+            gray = img.copy()
     else:
         gray = img.copy()
 

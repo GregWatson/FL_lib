@@ -89,9 +89,10 @@ def process_piece(piece: J_Piece, pre_processed_image: np.ndarray, debug:bool=Fa
     
     # Get triangles formed by corners and the point furthest from the line between 2 corners.
     # Operate on rotated edge image.
-    triangles, side_types, piece_type = find_triangles_from_corners(rotated_edges, corners, debug=debug)
-    if not triangles or not side_types: return False
+    triangles, side_types, piece_type, dir = find_triangles_from_corners(rotated_edges, corners, debug=debug)
+    if not triangles or not side_types or not dir: return False
     if len(triangles) == 4:
+        piece.dir = dir
         for tri, et in zip(triangles, side_types):
             piece.rot['triangles'].append(tri)
             piece.info.side_types.append(et)
@@ -116,6 +117,6 @@ def process_piece(piece: J_Piece, pre_processed_image: np.ndarray, debug:bool=Fa
         for corner_point in [ col for row in corners for col in row if col]:
             _, point, angle_rad = corner_point
             cv2.circle(rotated_image, (int(point[0]), int(point[1])), 10, (0, 0, int(255*angle_rad/(2*np.pi))), -1)
-        show_image(rotated_image, str=f"Corners {info.id}", max=1000, wait_for_key=True)
+        show_image(rotated_image, str=f"Corners {info.id}", max_side=1000, wait_for_key=True)
 
     return True

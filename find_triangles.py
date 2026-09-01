@@ -94,10 +94,13 @@ def find_triangles_from_corners(img, corners, debug=False):
 
         return (furthest_point, st) if max_dist > min_distance else (0,SideType.EDGE)
 
+    # -------------------------------
+    
     work_img = img.copy()
     triangles = []
     side_types = []
-    for side in sides:
+    dir = {}
+    for s_idx, side in enumerate(sides):
         (furthest_point, side_type) = find_furthest_point_for_side(work_img, side, thresh=20, num_to_check=max(img_w, img_h))
         if furthest_point: # Tab or Blank
             triangles.append(P_Triangle([side[1], side[2], furthest_point]))
@@ -105,19 +108,20 @@ def find_triangles_from_corners(img, corners, debug=False):
         else: # Edge
             triangles.append(P_Triangle([side[1], side[2]]))
             side_types.append(SideType.EDGE)
+        dir[side[0]] = s_idx
 
     # cannot have edges on opposite sides
     if side_types[0] == SideType.EDGE and side_types[2] == SideType.EDGE:
-        return None, None, None
+        return None, None, None, None
     if side_types[1] == SideType.EDGE and side_types[3] == SideType.EDGE:
-        return None, None, None
+        return None, None, None, None
 
     piece_type = PieceType.MIDDLE
     num_edges = sum ([1 for st in side_types if st == SideType.EDGE ])
-    print(f"Number of edges = {num_edges}")
+    # print(f"Number of edges = {num_edges}")
     if num_edges == 2:
         piece_type = PieceType.CORNER
     elif num_edges == 1:
         piece_type = PieceType.EDGE
 
-    return triangles, side_types, piece_type
+    return triangles, side_types, piece_type, dir

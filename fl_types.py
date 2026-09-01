@@ -90,6 +90,18 @@ class J_Piece:
     info: P_Info 
     orig: dict 
     rot: dict
+    dir: dict  # Map of compass points NSEW to int index used in side_types and rot['triangles']
+
+    @classmethod
+    def connecting_sidetype(cls, side_type: SideType):
+        if side_type == SideType.EDGE or side_type == SideType.CURVE:
+            return None
+        return SideType.TAB if side_type == SideType.BLANK else SideType.BLANK
+
+    @classmethod
+    def side_index_opposite(cls, side_index):
+        return (side_index + 2) % 4
+
 
     def __init__(self, info=None):
         if info is None:
@@ -110,26 +122,85 @@ class J_Piece:
             'tab_keep_outs': None, # List of areas where tabs occur. Each is (top left point, bottom right point)
             'triangles': [] # List of triangles. (P_Triangle)
         }
-        pass
+        self.dir = {} # will get set to NESW when piece is processed, but then 
+                      # may change once the piece is placed in the jigsaw.
+
+    def set_direction(self, dir):
+        self.dir = dir
 
     def has_an_edge(self):
         return self.info.side_types and len(self.info.side_types) == 4 and SideType.EDGE in self.info.side_types
 
-    def side_index_opposite(self, side_index):
-        return (side_index + 2) % 4
-
     def side_type_opposite(self, side_index):
         return self.info.side_types[self.side_index_opposite(side_index)]
 
+    def get_sidetype_by_dir(self, dir:str):
+        index = self.dir[dir]
+        return self.info.side_types[index]
+    
+    # Check that current piece direction satisfies the constraints.
+    def piece_side_constraints_ok(self, constraints: dict, use_given_dir = False, given_dir = None):
+        if use_given_dir: assert given_dir is not None
+        for dir, st in constraints.items():
+            index = given_dir[dir] if use_given_dir else self.dir[dir]
+            if self.info.side_types[index] != st:
+                return False
+        return True
 
+    # Get all (0 to 4) dirs dicts that satisfy the given side constraints.
+    # returns list of dirs, or None.
+    def get_dirs_by_constraints(self, constraints: dict):
+        assert len(self.dir) == 4
+        result = []
+        temp_dir = self.dir.copy()
+        for _ in  range(4):
+            if self.piece_side_constraints_ok(constraints, use_given_dir = True, given_dir = temp_dir):
+                result.append(temp_dir)
+            # Rotate the piece by one direction and try again
+            temp_dir = temp_dir.copy()
+            for d in 'NESW': temp_dir[d] = (temp_dir[d] + 1) % 4
+        if len(result): return result 
+        else: return None
 
 class Jigsaw:
     images: dict
-    pieces: list[ J_Piece ]
+    unplaced: list [ J_Piece ] # Unplaced pieces
+    placed: list[ list [J_Piece | None] ] # list of rows. Each row is a list of pieces. 0,0 = top left.
+    dim: list[int] # Dimensions of the puzzle. 0 = width, 1 = height
+    num_pieces: int # Total number of pieces in the puzzle
 
     def __init__(self):
         # Initialize any necessary properties here
         self.images = {'originals': []} # All images used
         self.unplaced = [] # Unplaced pieces
+        self.placed = []
+        self.dim = []
+        self.num_pieces = 0
         pass
+
+    def set_dim(self, height:int, width:int):
+        self.dim = [width, height]
+        self.placed = [[None for _ in range(width)] for _ in range(height)]
+        self.num_pieces = height * width
+
+    def get_placed_constraints(self, x:int, y:int) -> dict :
+        constraints = {}
+        if x==0: constraints['W'] = SideType.EDGE
+        else: 
+            if self.placed[y][x-1] is not None: constraints['W'] = self.placed[y][x-1].get_sidetype_by_dir('E')
+
+        if x==(self.dim[0]-1): constraints['E'] = SideType.EDGE
+        else: 
+            if self.placed[y][x+1] is not None: constraints['E'] = self.placed[y][x+1].get_sidetype_by_dir('W')
+
+        if y==0: constraints['N'] = SideType.EDGE
+        else: 
+            if self.placed[y-1][x] is not None: constraints['N'] = self.placed[y-1][x].get_sidetype_by_dir('S')
+
+        if y==(self.dim[1]-1): constraints['S'] = SideType.EDGE
+        else: 
+            if self.placed[y+1][x] is not None: constraints['S'] = self.placed[y][x+1].get_sidetype_by_dir('N')
+
+        return constraints
+
 

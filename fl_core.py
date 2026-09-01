@@ -261,9 +261,9 @@ def draw_poly(image, pts, color=(0,0,255), thickness=4):
 def draw_triangle(image, pts3, color=(0, 255, 0), thickness=1):
     cv2.polylines(image, [np.array([[pts3[0][0], pts3[0][1]], [pts3[1][0], pts3[1][1]], [pts3[2][0], pts3[2][1]]], dtype=np.int32)], isClosed=True, color=color, thickness=thickness)   
 
-def show_image(img, str="Image", max=1000, wait_for_key=True):
-    x_scale_factor = 1000.0 / img.shape[1]
-    y_scale_factor = 1000.0 / img.shape[0]
+def show_image(img, str="Image", max_side=1000, wait_for_key=True):
+    x_scale_factor = max_side / img.shape[1]
+    y_scale_factor = max_side / img.shape[0]
     scale_factor = min(x_scale_factor, y_scale_factor, 1.0)
     resized_image = cv2.resize(img, (0, 0), fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
     cv2.imshow(str, resized_image)
