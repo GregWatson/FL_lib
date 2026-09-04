@@ -3,15 +3,11 @@ import numpy as np
 from fl_types import J_Piece, PieceType, Jigsaw, SideType
 from find_best_match import find_best_match_given_surrounding_pieces
 
-def build_edges(jigsaw: Jigsaw):
-    """ Build the edges for the jigsaw """
-
-    pieces = jigsaw.unplaced
-
-    # Build an edge
+def build_top_edge(jigsaw: Jigsaw):
+    """ Build the first edge for the jigsaw """
 
     # First get a corner piece; then orient it so that the top and left are edges.
-    topleft_piece = next((p for p in pieces if p.info.piece_type == PieceType.CORNER), None)
+    topleft_piece = next((p for p in jigsaw.unplaced if p.info.piece_type == PieceType.CORNER), None)
     if topleft_piece is None:
         raise ValueError("No corner piece found.")
     # Rotate the corner to be top left.
@@ -21,47 +17,79 @@ def build_edges(jigsaw: Jigsaw):
     else:
         topleft_piece.dir = new_dirs[0] # can only be one valid rotation
 
-    edge_pieces = [topleft_piece]
+    # We cannot use jigsaw.placed yet as we don't know which side we are dealing with.
+    # Instead, use a list that we can place once we know where we are.
+    top_edge = [topleft_piece]
+    jigsaw.unplaced.remove(topleft_piece)
 
     # Now try to add edge pieces along the top edge. 
     # We should come to a corner piece after placing dim[0] or dim[1] pieces.
     max_side = max(jigsaw.dim)   # dont know if we have top/bottom or left/right, so take max.
-    while len(edge_pieces) < max_side:
+    min_side = min(jigsaw.dim)
+
+    while len(top_edge) != max_side or top_edge[-1].info.piece_type != PieceType.CORNER:
 
         # There is only one placed piece adjacent and that is to the west of the piece we are looking for.
-        last_piece = edge_pieces[-1]
+        last_piece = top_edge[-1]
 
         surrounding_pieces = { 'W':last_piece, 'N':None, 'E':None, 'S':None}
-        side_constraints = {'N': SideType.EDGE,
+        constraints = {'N': SideType.EDGE,
                             'W': J_Piece.connecting_sidetype(last_piece.get_sidetype_by_dir('E'))}
+        if len(top_edge) == max_side-1:
+            constraints['P'] = [PieceType.CORNER ] # only
+        elif len(top_edge) == min_side-1:
+            constraints['P'] = [PieceType.CORNER, PieceType.EDGE ] 
+        else:
+            constraints['P'] = [PieceType.EDGE ] 
 
-        piece_dir_score = find_best_match_given_surrounding_pieces(surrounding_pieces, side_constraints, jigsaw.unplaced)
+        (piece, dir, score) = find_best_match_given_surrounding_pieces(surrounding_pieces, constraints, jigsaw.unplaced)
+        if piece is None:
+            raise ValueError("No suitable piece was found.")
+        piece.set_orientation(dir)
+        top_edge.append(piece)
+        print(f"Adding {str(piece.info.piece_type)} piece {piece.info.id} to initial edge.")
+        jigsaw.unplaced.remove(piece)
 
-        # # Add a piece.
+    return top_edge
 
-        # if (len(edge_pieces) != (jigsaw.dim[0]-1)) and (len(edge_pieces) != (jigsaw.dim[1]-1)):
-        #     possibles = [ p for p in jigsaw.unplaced if p.info.piece_type == PieceType.EDGE ]
-        # else:
-        #     possibles = [ p for p in jigsaw.unplaced if (p.info.piece_type == PieceType.EDGE or p.info.piece_type == PieceType.CORNER) ]
+def find_and_place_best_piece_at_XY(jigsaw, x, y):
+        if jigsaw.placed[y][x] != None: return
+        print(f"Find and place best piece at ({x},{y})")
+        constraints = jigsaw.get_placed_constraints(x=x, y=y)
+        surrounding_pieces = jigsaw.get_surrounding_pieces(x=x,y=y)
+        (piece, dir, score) = find_best_match_given_surrounding_pieces(surrounding_pieces, constraints, jigsaw.unplaced)
+        if piece is None:
+            raise ValueError("No suitable piece was found for ({x},{y}).")
+        piece.set_orientation(dir)
+        jigsaw.placed[y][x] = piece
+        print(f"Adding {str(piece.info.piece_type)} piece {piece.info.id} to grid at ({x},{y})")
+        jigsaw.unplaced.remove(piece)
 
-        # # limit the possibles to those that match tab/blank as well.
-        # possibles = Jigsaw.get_pieces_that_satisfy_constraints(constraints, possibles)
-
-        # poss_ids = ", ".join([str(p.info.id) for p in possibles])
-        # print(f"  Found {len(possibles)} possible edge pieces: {poss_ids}.")
-        # if not len(possibles):
-        #     raise ValueError("Unable to find a piece that satisfies the given constraints.")
-
-        # # Find the best match from list of possibles, given the surrounding (NESW) pieces.
-        # best_match = find_best_match_given_surrounding_pieces( last_piece, possibles)
-
-
-        # best_matching_piece = find_best_match(piece, pieces)
+def build_edges(jigsaw):
+    """ Build all edges for the jigsaw. One edge (top or left) is already constructed.
+    """
+    print("Placing top edge")
+    y = 0 # top edge
+    for x in range(jigsaw.dim[0]):
+        find_and_place_best_piece_at_XY(jigsaw, x, y)
+    for x in (0, jigsaw.dim[0]-1): # left edge, right edge
+        print("Placing left or right edge")
+        for y in range(jigsaw.dim[1]):
+            find_and_place_best_piece_at_XY(jigsaw, x, y)
+    print("Placing bottom edge")
+    y = jigsaw.dim[1]-1 # bottom
+    for x in range(jigsaw.dim[0]):
+        find_and_place_best_piece_at_XY(jigsaw, x, y)
 
 
 def solve_puzzle(jigsaw: Jigsaw, debug=False) -> bool:
 
     print(f"Solving puzzle")
+
+    edge_pieces = build_top_edge(jigsaw)
+
+    # It might not have been the top edge so move it if needed.
+    jigsaw.place_top_edge(edge_pieces)
 
     build_edges(jigsaw)
 

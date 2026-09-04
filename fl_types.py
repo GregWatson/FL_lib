@@ -7,6 +7,7 @@ from fl_core import get_angle_between_3_points
 def line_len(pt1, pt2):
     return sqrt((pt1[0] - pt2[0])**2 + (pt1[1] - pt2[1])**2)
 
+
 class PieceType(Enum):
     CORNER = 0
     EDGE = 1
@@ -122,10 +123,11 @@ class J_Piece:
             'tab_keep_outs': None, # List of areas where tabs occur. Each is (top left point, bottom right point)
             'triangles': [] # List of triangles. (P_Triangle)
         }
-        self.dir = {} # will get set to NESW when piece is processed, but then 
+        self.dir = {} # Dict. maps 'NESW' to index(integer 0-3). Index used for triangle and side_types.
+                      # Will get set to NESW -> 0 1 2 3 hen piece is processed, but then 
                       # may change once the piece is placed in the jigsaw.
 
-    def set_direction(self, dir):
+    def set_orientation(self, dir):
         self.dir = dir
 
     def has_an_edge(self):
@@ -134,7 +136,7 @@ class J_Piece:
     def side_type_opposite(self, side_index):
         return self.info.side_types[self.side_index_opposite(side_index)]
 
-    def get_sidetype_by_dir(self, dir:str):
+    def get_sidetype_by_dir(self, dir:str): # dir in NESW
         index = self.dir[dir]
         return self.info.side_types[index]
     
@@ -142,6 +144,7 @@ class J_Piece:
     def piece_side_constraints_ok(self, constraints: dict, use_given_dir = False, given_dir = None):
         if use_given_dir: assert given_dir is not None
         for dir, st in constraints.items():
+            if dir=='P': continue
             index = given_dir[dir] if use_given_dir else self.dir[dir]
             if self.info.side_types[index] != st:
                 return False
@@ -173,7 +176,7 @@ class Jigsaw:
         # Initialize any necessary properties here
         self.images = {'originals': []} # All images used
         self.unplaced = [] # Unplaced pieces
-        self.placed = []
+        self.placed = [] # gird. Index as [y][x]
         self.dim = []
         self.num_pieces = 0
         pass
@@ -201,6 +204,47 @@ class Jigsaw:
         else: 
             if self.placed[y+1][x] is not None: constraints['S'] = self.placed[y][x+1].get_sidetype_by_dir('N')
 
+
+        # Set piece type constraint
+        constraints['P'] = [PieceType.MIDDLE]
+
+        # Check for corner
+        for xx in (0, self.dim[0]-1):
+            for yy in (0, self.dim[1]-1):
+                if x==xx and y==yy:
+                    constraints['P'] = [PieceType.CORNER]
+                    return constraints
+
+        # Check for edge
+        for xx in (0, self.dim[0]-1):
+            for yy in (0, self.dim[1]-1):
+                if x==xx or y==yy:
+                    constraints['P'] = [PieceType.EDGE]
+                    return constraints
+
         return constraints
 
+
+    def place_top_edge(self, top_edge):
+        """ We constructed param top_edge assuming that it might be the top edge,
+        but it could be the left (or right) edge."""
+        if self.dim[0] != self.dim[1]:
+            raise ValueError("Only square jigsaw puzzles are currently supported")
+        for i,p in enumerate(top_edge):
+            self.placed[0][i] = p
+
+        return
+
+    def get_surrounding_pieces(self,x:int, y:int):
+        """ Return dict of surrounding pieces."""
+        surrounding_pieces = { 'W':None, 'N':None, 'E':None, 'S':None}
+        if y > 0: 
+            if self.placed[y-1][x] is not None: surrounding_pieces['N'] = self.placed[y-1][x]
+        if y < self.dim[1] - 1:
+            if self.placed[y+1][x] is not None: surrounding_pieces['S'] = self.placed[y+1][x]
+        if x > 0: 
+            if self.placed[y][x-1] is not None: surrounding_pieces['W'] = self.placed[y][x-1]
+        if x < self.dim[0] - 1:
+            if self.placed[y][x+1] is not None: surrounding_pieces['E'] = self.placed[y][x+1]
+        return surrounding_pieces
 
