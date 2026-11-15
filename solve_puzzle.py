@@ -2,11 +2,12 @@ import cv2
 import numpy as np
 from fl_types import J_Piece, PieceType, Jigsaw, SideType
 from find_best_match import find_best_match_given_surrounding_pieces
+from fl_core import show_image
 
 def build_top_edge(jigsaw: Jigsaw):
     """ Build the first edge for the jigsaw """
 
-    # First get a corner piece; then orient it so that the top and left are edges.
+    # First get any corner piece; then orientate it so that the top and left are edges.
     topleft_piece = next((p for p in jigsaw.unplaced if p.info.piece_type == PieceType.CORNER), None)
     if topleft_piece is None:
         raise ValueError("No corner piece found.")
@@ -59,7 +60,7 @@ def find_and_place_best_piece_at_XY(jigsaw, x, y):
         surrounding_pieces = jigsaw.get_surrounding_pieces(x=x,y=y)
         (piece, dir, score) = find_best_match_given_surrounding_pieces(surrounding_pieces, constraints, jigsaw.unplaced)
         if piece is None:
-            raise ValueError("No suitable piece was found for ({x},{y}).")
+            raise ValueError(f"No suitable piece was found for ({x},{y}).")
         piece.set_orientation(dir)
         jigsaw.placed[y][x] = piece
         print(f"Adding {str(piece.info.piece_type)} piece {piece.info.id} to grid at ({x},{y})")
@@ -73,9 +74,12 @@ def build_edges(jigsaw):
     for x in range(jigsaw.dim[0]):
         find_and_place_best_piece_at_XY(jigsaw, x, y)
     for x in (0, jigsaw.dim[0]-1): # left edge, right edge
-        print("Placing left or right edge")
+        print("Placing {} edge.".format("left" if x == 0 else "right"))
         for y in range(jigsaw.dim[1]):
             find_and_place_best_piece_at_XY(jigsaw, x, y)
+            new_image = jigsaw.create_image_of_jigsaw()
+            show_image(new_image, str="Jigsaw", max_side=1000, wait_for_key=True)
+
     print("Placing bottom edge")
     y = jigsaw.dim[1]-1 # bottom
     for x in range(jigsaw.dim[0]):

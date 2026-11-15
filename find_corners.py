@@ -100,7 +100,7 @@ def get_keep_outs(poly_points, outer_angles, tl_bbox, br_bbox, debug=False):
     tab_keep_outs = find_tab_areas(poly_points, outer_angles, tl_bbox, br_bbox, blank_keep_outs, debug=debug)
     return blank_keep_outs, tab_keep_outs
 
-def find_corners(lines_found, tl_bbox=None, br_bbox=None, end_to_end_dist_thresh=20, debug=False):
+def find_approx_corners(lines_found, tl_bbox=None, br_bbox=None, end_to_end_dist_thresh=20, debug=False):
     corners = []
     if not len(lines_found):
         return corners
@@ -185,3 +185,101 @@ def find_corners(lines_found, tl_bbox=None, br_bbox=None, end_to_end_dist_thresh
 
     return final_corners, blank_keep_outs, tab_keep_outs
 
+# Helper function
+# Calculate all the pixel positions that form the edge of a box centered 
+# at pointXY with edge length box_len, and that lie within a bounding box
+# 0 <= x < maxX, 0 <= y < maxY
+def get_box_pixel_list(pointXY, box_len, maxX, maxY):
+    half_len = box_len // 2
+    x_min = pointXY[0] - half_len
+    x_max = pointXY[0] + half_len 
+    y_min = pointXY[1] - half_len
+    y_max = pointXY[1] + half_len
+    pixels = []
+    if y_min >= 0:
+        for x in range(x_min, x_max + 1):
+            if x >=0 and x < maxX:  pixels.append((x, y_min))
+    if y_max < maxY:
+        for x in range(x_min, x_max + 1):
+            if x >=0 and x < maxX:  pixels.append((x, y_max))
+    if x_min >= 0:
+        for y in range(y_min + 1, y_max):
+            if y >= 0 and y < maxY:  pixels.append((x_min, y))
+    if x_max < maxX:
+        for y in range(y_min + 1, y_max):
+            if y >= 0 and y < maxY:  pixels.append((x_max, y))
+    print(f"Box len {box_len}: ",end='')
+    for p in pixels: print(f"({p[0]},{p[1]}) ", end='')
+    print("")
+    return pixels
+
+# Helper function for find_better_corners.
+# Given an initial pixel location pointXY, search the image by scanning
+# pixels starting at pointXY and moving outwards.
+# Two phases:
+# 1: Find a pixel close to pointXY that is set (not black). Call this startXY
+# 2: Expand outwards from startXY until we have an expansion that doesnt find 
+#    any pixels set. Then return pixel that was set and closest to img_corner.
+def find_better_corner(image, pointXY, img_corner):
+    min_white = 128 # pixel value to be a set pixel
+    print(f"find_better_corner: Initial Pixel at ({pointXY[0]},{pointXY[1]}) is {image[pointXY[1], pointXY[0]]}. img_corner is ({img_corner[0]},{img_corner[1]})")
+    startXY = (pointXY[0], pointXY[1])
+    if image[startXY[1],startXY[0]] < min_white:
+        # Phase 1 is needed
+        # Look at each pixel that forms the edge of a box centered at pointXY and 
+        # with length box_len. box_len goes up in increments of 2.
+        box_len = 3
+        max_box_len = 15 # If we dont find a set pixel within this size box then something's wrong.
+        done = False
+        while not done:
+            poss_pixels = get_box_pixel_list(pointXY, box_len, image.shape[1], image.shape[0])
+            for p in poss_pixels:
+                if image[p[1], p[0]] >= min_white:
+                    startXY = p
+                    done = True
+                    break
+            if not done:
+                box_len += 2
+                if box_len > max_box_len:
+                    done = True
+        assert box_len <= max_box_len, "Failed to find a set pixel within the maximum box size"
+    print(f"Actual startXY is ({startXY[0]},{startXY[1]})")
+
+    # Phase 2
+    best_corner = startXY
+    best_distance = (startXY[0] - img_corner[0]) ** 2 + (startXY[1] - img_corner[1]) ** 2
+    box_len = 3
+    max_box_len = max(abs(startXY[0] - img_corner[0]), 3)
+    
+    while True:
+        poss_pixels = get_box_pixel_list(startXY, box_len, image.shape[1], image.shape[0])
+        found = False
+        for p in poss_pixels:
+            if image[p[1], p[0]] >= min_white:
+                distance = (p[0] - img_corner[0]) ** 2 + (p[1] - img_corner[1]) ** 2
+                if distance < best_distance:
+                    found = True
+                    best_distance = distance
+                    best_corner = p
+                    print(f"  New best corner: ({best_corner[0]},{best_corner[1]}) with distance {best_distance}")
+        if not found:
+            break
+        box_len += 2
+    assert box_len <= max_box_len, "Failed to find a set pixel within the maximum box size of {}".format(max_box_len)
+    print(f"Better corner: Start ({startXY[0]},{startXY[1]}) -> ({best_corner[0]},{best_corner[1]})")
+    return best_corner
+
+# Given a pixel location close to the real corner, try to find the real corner
+# by looking at the actual edge image to find the pixel closest to the image corner.
+# Param corners is [[TL, TR], [BL, BR]].
+def find_better_corners(image, corners):
+    new_corners = []
+    width = image.shape[1]
+    height = image.shape[0]
+    for ix, corner_point in enumerate([ col for row in corners for col in row if col]):
+            cornerness, pointXY, angle = corner_point
+            img_corner = ((ix % 2) * width, (ix >> 1) * height)
+            better_corner = find_better_corner(image, pointXY, img_corner)
+            new_corners.append((cornerness, better_corner, angle))
+    
+    return [new_corners[0:2], new_corners[2:4]]

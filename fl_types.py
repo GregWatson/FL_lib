@@ -2,7 +2,7 @@
 import numpy as np
 from enum import Enum
 from math import sqrt
-from fl_core import get_angle_between_3_points
+from fl_core import get_angle_between_3_points, scale_and_place_foreground_with_background
 
 def line_len(pt1, pt2):
     return sqrt((pt1[0] - pt2[0])**2 + (pt1[1] - pt2[1])**2)
@@ -232,7 +232,7 @@ class Jigsaw:
             raise ValueError("Only square jigsaw puzzles are currently supported")
         for i,p in enumerate(top_edge):
             self.placed[0][i] = p
-
+        print("The first edge has now been moved to be the top edge.")
         return
 
     def get_surrounding_pieces(self,x:int, y:int):
@@ -248,3 +248,13 @@ class Jigsaw:
             if self.placed[y][x+1] is not None: surrounding_pieces['E'] = self.placed[y][x+1]
         return surrounding_pieces
 
+    def create_image_of_jigsaw(self):
+        """ Create an image representation of the current jigsaw state. """
+        import cv2
+        import numpy as np
+        img = np.zeros((self.dim[1]*100, self.dim[0]*100, 4), dtype=np.uint8)
+        for y in range(self.dim[1]):
+            for x in range(self.dim[0]):
+                if self.placed[y][x] is not None:
+                    img = scale_and_place_foreground_with_background(self.placed[y][x].rot["edges_image_grey"], img, (100, 100), (x*100, y*100))
+        return img

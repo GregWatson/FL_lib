@@ -3,19 +3,19 @@ import numpy as np
 
 from fl_types import J_Piece
 from find_rotation import find_rotation
-from fl_core import rotate_line, show_image, get_bounding_box_from_lines
-from find_corners import find_corners
+from fl_core import rotate_line, show_image, get_bounding_box_from_lines, convert_img_to_bgr
+from find_corners import find_approx_corners, find_better_corners
 from fl_pad_and_scale import fl_pad_and_scale
 from find_triangles import find_triangles_from_corners
 
 def process_piece(piece: J_Piece, pre_processed_image: np.ndarray, debug:bool=False) -> bool:
 
     """ Process a single Jigsaw piece:
-    Piece of type J_Piece must have basic info already determined via  s function such as get_piece_info.
+    Piece of type J_Piece must have basic info already determined via a function such as get_piece_info().
 
     Then:
     1. Expand image if needed so no info is lost if we rotate it.
-    2. Find the lines that make up the edde.
+    2. Find the lines that make up the edges.
     3. Use these lines to determine how to rotate the piece in order to 'straighten it up'.
     4. Rotate the piece.
     5. Find the corners as well as tab and blank areas.
@@ -24,8 +24,8 @@ def process_piece(piece: J_Piece, pre_processed_image: np.ndarray, debug:bool=Fa
     As we go, add the computed information to the piece object.
     """
     info = piece.info
-    assert info is not None, "Piece must have basic info"
-    assert info.box is not None, "Piece must have bounding box info"
+    assert info is not None, "Piece must have basic info."
+    assert info.box is not None, "Piece must have bounding box info."
     assert info.centroid is not None, "Piece must have centroid defined."
 
     # create a new image that is just the piece, by cropping the pre_processed_image using the 
@@ -47,10 +47,10 @@ def process_piece(piece: J_Piece, pre_processed_image: np.ndarray, debug:bool=Fa
 
     # Extract edges using Canny edge detection. This will give us a binary image where the edges
     # are white and the rest is black. We can then use this to find lines and estimate rotation.
-    edges = cv2.Canny(piece_image, 50, 150, apertureSize=3)
+    orig_edges = cv2.Canny(piece_image, 50, 150, apertureSize=3)
 
     # Analyse the image to see if it can be 'straightened up' and if so by how much.
-    rotation_angle_rad, lines = find_rotation(edges, cx, cy, debug=debug)
+    rotation_angle_rad, lines = find_rotation(orig_edges, cx, cy, debug=debug)
     rotation_angle = np.degrees(rotation_angle_rad)
     piece.rot['rotation_angle_rad'] = rotation_angle_rad
 
@@ -61,9 +61,9 @@ def process_piece(piece: J_Piece, pre_processed_image: np.ndarray, debug:bool=Fa
     rotated_image = cv2.cvtColor(rotated_image_grey, cv2.COLOR_GRAY2BGR)
     piece.rot['edges_image_grey'] = rotated_image_grey
     piece.rot['img_w'], piece.rot['img_h'] = rotated_image_grey.shape[1], rotated_image_grey.shape[0]
-    rotated_edges = cv2.warpAffine(edges.copy(), rotation_matrix, (piece.rot['img_w'], piece.rot['img_h']))
+    rotated_edges = cv2.warpAffine(orig_edges.copy(), rotation_matrix, (piece.rot['img_w'], piece.rot['img_h']))
 
-    # Rotate the lines we found as well for debugging purposes, and draw them on the rotated image. 
+    # Rotate the lines we found as well for debugging purposes , and draw them on the rotated image. 
     # This will help us see if the rotation is correct and if the lines are aligned with the edges 
     # of the piece after rotation. We can also use this to find the corners of the piece after rotation, 
     # which will be useful for further processing steps like matching pieces together.
@@ -77,15 +77,31 @@ def process_piece(piece: J_Piece, pre_processed_image: np.ndarray, debug:bool=Fa
         return False
 
     # Find the corners of the piece
-    corners, blank_keep_outs, tab_keep_outs = find_corners(rotated_lines, (tl_x, tl_y), (br_x, br_y), end_to_end_dist_thresh=20, debug=debug)
-    # print(f"Corners are: {corners}")
+    approx_corners, blank_keep_outs, tab_keep_outs = find_approx_corners(rotated_lines, (tl_x, tl_y), (br_x, br_y), end_to_end_dist_thresh=20, debug=debug)
+    # print(f"Approx corners are: {approx_corners}")
 
-    if len(corners) == 2:
+    # Refine the corner pixel selection
+    corners = find_better_corners(rotated_edges, approx_corners)
+
+    if len(corners) == 2: # [[TL, TR], [BL, BR]].
         piece.rot['corners'] = corners
         piece.rot['blank_keep_outs'] = blank_keep_outs
         piece.rot['tab_keep_outs'] = tab_keep_outs
     else:
         return False
+
+    if debug:
+        # Display rotated edge image with corners.
+        scale_factor = max(1.0, 2000.0 / max(rotated_edges.shape[0], rotated_edges.shape[1]))
+        rotated_edges_resized = cv2.resize(rotated_edges, (0, 0), fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
+        rotated_edges_bgr = convert_img_to_bgr(rotated_edges_resized)
+        # Add approx corners to rot_edges image.
+        for corner_point in [ col for row in corners for col in row if col]:
+            _, point, _ = corner_point
+            cv2.circle(rotated_edges_bgr, (int(scale_factor*point[0]), int(scale_factor*point[1])), 8, (0, 0, 200), 2)
+        show_image(rotated_edges_bgr, str=f"Rot edges and approx corners {info.id}", max_side=1000, wait_for_key=True)
+
+
     
     # Get triangles formed by corners and the point furthest from the line between 2 corners.
     # Operate on rotated edge image.

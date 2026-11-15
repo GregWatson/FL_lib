@@ -26,7 +26,7 @@ def fl_remove_background(img, debug=False, image_type="normal"):
         # show_image(mask_as_grey, str="Mask Alpha Channel", max=1000, wait_for_key=True)
 
         if debug:
-            show_image(img, str="Background removed", max=1000, wait_for_key=True)
+            show_image(img, str="Background removed", max_side=1000, wait_for_key=True)
 
     else:
         mask = img.copy()

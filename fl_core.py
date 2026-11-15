@@ -277,3 +277,72 @@ def print_histogram(values, bin_labels):
     scale = max(values)/60
     for i, v in enumerate(values):
         print(f"{bin_labels[i]} {int(values[i] / scale) * '#'}")
+
+def convert_img_to_gray(image):
+    if len(image.shape) == 2:
+        return image.copy()
+    elif len(image.shape) == 3:
+        return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    elif image.shape[2] == 4:
+        return cv2.cvtColor(image, cv2.COLOR_BGRA2GRAY)
+    else:
+        raise ValueError("Unknown image shape dimension: {len(image.shape)}")
+
+def convert_img_to_bgr(image):
+    if len(image.shape) == 3:
+        return image.copy()
+    elif len(image.shape) == 2:
+        return cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+    elif image.shape[2] == 4:
+        return cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
+    else:
+        raise ValueError("Unknown image shape dimension: {len(image.shape)}")
+
+def convert_img_to_bgra(image):
+    if len(image.shape) == 4:
+        return image.copy()
+    elif len(image.shape) == 2:
+        return cv2.cvtColor(image, cv2.COLOR_GRAY2BGRA)
+    elif len(image.shape) == 3:
+        return cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
+    else:
+        raise ValueError("Unknown image shape dimension: {len(image.shape)}")
+
+def convert_ImgA_to_same_type_as_ImgB(imgA, imgB):
+    if imgA.shape == imgB.shape:
+        return imgA.copy()
+    if len(imgB.shape) == 2:
+        return convert_img_to_gray(imgA)
+    if len(imgB.shape) == 3:
+        return convert_img_to_bgr(imgA)
+    if len(imgB.shape) == 4:
+        return convert_img_to_bgra(imgA)
+    raise ValueError("Unsupported image type combination")
+
+# Scale and place the foreground image onto the background image at the specified position and dimensions.
+def scale_and_place_foreground_with_background(foreground, background,fgnd_dimensions,fgnd_position_2d):
+    bgnd_bgra = convert_img_to_bgra(background)
+    fgnd_img = convert_img_to_bgra(foreground)
+
+    # Scale the foreground
+    fg_resized = cv2.resize(fgnd_img, fgnd_dimensions, interpolation=cv2.INTER_AREA)
+    fg_h, fg_w = fg_resized.shape[:2]
+
+    x_offset, y_offset = fgnd_position_2d
+
+    # Separate the BGR color channels and the Alpha channel
+    fg_bgr = fg_resized[:, :, :3]
+    alpha = fg_resized[:, :, 3] / 255.0  # Normalize alpha to range [0.0, 1.0]
+
+    # Extract the Region of Interest (ROI) from the background
+    roi = bgnd_bgra[y_offset : y_offset + fg_h, x_offset : x_offset + fg_w]
+
+    # Blend each color channel using the alpha mask
+    for c in range(3):
+        roi[:, :, c] = (alpha * fg_bgr[:, :, c]) + ((1 - alpha) * roi[:, :, c])
+
+    # Put the blended ROI back into the background
+    bgnd_bgra[y_offset : y_offset + fg_h, x_offset : x_offset + fg_w] = roi
+
+    cv2.imwrite("output_transparent.png", bgnd_bgra)
+    return bgnd_bgra
