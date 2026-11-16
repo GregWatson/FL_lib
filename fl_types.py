@@ -2,7 +2,7 @@
 import numpy as np
 from enum import Enum
 from math import sqrt
-from fl_core import get_angle_between_3_points, scale_and_place_foreground_with_background
+from fl_core import get_angle_between_3_points, scale_and_place_foreground_with_background, rotate_image
 
 def line_len(pt1, pt2):
     return sqrt((pt1[0] - pt2[0])**2 + (pt1[1] - pt2[1])**2)
@@ -18,6 +18,12 @@ class SideType(Enum):
     TAB = 1 # Outward calibration
     BLANK = 2 # Inward calibration
     CURVE = 3 # Irregular but not a distinct tab or socket. Kind of "Other"
+
+    def get_connecting_type(self):
+        """ Return the side type that connects to the given side type. """
+        if self == SideType.EDGE or self == SideType.CURVE:
+            return None
+        return SideType.TAB if self == SideType.BLANK else SideType.BLANK 
 
 class P_Triangle:
     """ Info about a triangle on a side.
@@ -124,7 +130,7 @@ class J_Piece:
             'triangles': [] # List of triangles. (P_Triangle)
         }
         self.dir = {} # Dict. maps 'NESW' to index(integer 0-3). Index used for triangle and side_types.
-                      # Will get set to NESW -> 0 1 2 3 hen piece is processed, but then 
+                      # Will get set to NESW -> 0 1 2 3 when piece is processed, but then 
                       # may change once the piece is placed in the jigsaw.
 
     def set_orientation(self, dir):
@@ -165,6 +171,13 @@ class J_Piece:
         if len(result): return result 
         else: return None
 
+    # return the number of radians that the piece has been rotated using the dir list
+    def get_macro_rotate_rads(self):
+        if self.dir['N'] == 0: return 0
+        elif self.dir['E'] == 0: return 3*np.pi/2
+        elif self.dir['S'] == 0: return np.pi
+        elif self.dir['W'] == 0: return np.pi/2
+    
 class Jigsaw:
     images: dict
     unplaced: list [ J_Piece ] # Unplaced pieces
@@ -190,19 +203,19 @@ class Jigsaw:
         constraints = {}
         if x==0: constraints['W'] = SideType.EDGE
         else: 
-            if self.placed[y][x-1] is not None: constraints['W'] = self.placed[y][x-1].get_sidetype_by_dir('E')
+            if self.placed[y][x-1] is not None: constraints['W'] = self.placed[y][x-1].get_sidetype_by_dir('E').get_connecting_type()
 
         if x==(self.dim[0]-1): constraints['E'] = SideType.EDGE
         else: 
-            if self.placed[y][x+1] is not None: constraints['E'] = self.placed[y][x+1].get_sidetype_by_dir('W')
+            if self.placed[y][x+1] is not None: constraints['E'] = self.placed[y][x+1].get_sidetype_by_dir('W').get_connecting_type()
 
         if y==0: constraints['N'] = SideType.EDGE
         else: 
-            if self.placed[y-1][x] is not None: constraints['N'] = self.placed[y-1][x].get_sidetype_by_dir('S')
+            if self.placed[y-1][x] is not None: constraints['N'] = self.placed[y-1][x].get_sidetype_by_dir('S').get_connecting_type()
 
         if y==(self.dim[1]-1): constraints['S'] = SideType.EDGE
         else: 
-            if self.placed[y+1][x] is not None: constraints['S'] = self.placed[y][x+1].get_sidetype_by_dir('N')
+            if self.placed[y+1][x] is not None: constraints['S'] = self.placed[y+1][x].get_sidetype_by_dir('N').get_connecting_type()
 
 
         # Set piece type constraint
@@ -252,9 +265,14 @@ class Jigsaw:
         """ Create an image representation of the current jigsaw state. """
         import cv2
         import numpy as np
-        img = np.zeros((self.dim[1]*100, self.dim[0]*100, 4), dtype=np.uint8)
+        main_img = np.zeros((self.dim[1]*100, self.dim[0]*100, 4), dtype=np.uint8)
         for y in range(self.dim[1]):
             for x in range(self.dim[0]):
-                if self.placed[y][x] is not None:
-                    img = scale_and_place_foreground_with_background(self.placed[y][x].rot["edges_image_grey"], img, (100, 100), (x*100, y*100))
-        return img
+                piece = self.placed[y][x]
+                if piece is not None:
+                    macro_rotate_rads = piece.get_macro_rotate_rads()
+                    print(f"Macro rotate for {x},{y} is {np.degrees(macro_rotate_rads)}")
+                    # Rotate the piece's edges image by the macro rotation
+                    rot_img = rotate_image(self.placed[y][x].rot["edges_image_grey"], macro_rotate_rads)
+                    main_img = scale_and_place_foreground_with_background(rot_img, main_img, (100, 100), (x*100, y*100))
+        return main_img

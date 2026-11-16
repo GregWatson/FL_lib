@@ -208,9 +208,9 @@ def get_box_pixel_list(pointXY, box_len, maxX, maxY):
     if x_max < maxX:
         for y in range(y_min + 1, y_max):
             if y >= 0 and y < maxY:  pixels.append((x_max, y))
-    print(f"Box len {box_len}: ",end='')
-    for p in pixels: print(f"({p[0]},{p[1]}) ", end='')
-    print("")
+    #print(f"Box len {box_len}: ",end='')
+    #for p in pixels: print(f"({p[0]},{p[1]}) ", end='')
+    # print("")
     return pixels
 
 # Helper function for find_better_corners.
@@ -222,7 +222,7 @@ def get_box_pixel_list(pointXY, box_len, maxX, maxY):
 #    any pixels set. Then return pixel that was set and closest to img_corner.
 def find_better_corner(image, pointXY, img_corner):
     min_white = 128 # pixel value to be a set pixel
-    print(f"find_better_corner: Initial Pixel at ({pointXY[0]},{pointXY[1]}) is {image[pointXY[1], pointXY[0]]}. img_corner is ({img_corner[0]},{img_corner[1]})")
+    #print(f"find_better_corner: Initial Pixel at ({pointXY[0]},{pointXY[1]}) is {image[pointXY[1], pointXY[0]]}. img_corner is ({img_corner[0]},{img_corner[1]})")
     startXY = (pointXY[0], pointXY[1])
     if image[startXY[1],startXY[0]] < min_white:
         # Phase 1 is needed
@@ -243,7 +243,7 @@ def find_better_corner(image, pointXY, img_corner):
                 if box_len > max_box_len:
                     done = True
         assert box_len <= max_box_len, "Failed to find a set pixel within the maximum box size"
-    print(f"Actual startXY is ({startXY[0]},{startXY[1]})")
+    #print(f"Actual startXY is ({startXY[0]},{startXY[1]})")
 
     # Phase 2
     best_corner = startXY
@@ -261,12 +261,12 @@ def find_better_corner(image, pointXY, img_corner):
                     found = True
                     best_distance = distance
                     best_corner = p
-                    print(f"  New best corner: ({best_corner[0]},{best_corner[1]}) with distance {best_distance}")
+                    #print(f"  New best corner: ({best_corner[0]},{best_corner[1]}) with distance {best_distance}")
         if not found:
             break
         box_len += 2
     assert box_len <= max_box_len, "Failed to find a set pixel within the maximum box size of {}".format(max_box_len)
-    print(f"Better corner: Start ({startXY[0]},{startXY[1]}) -> ({best_corner[0]},{best_corner[1]})")
+    # print(f"Better corner: Start ({startXY[0]},{startXY[1]}) -> ({best_corner[0]},{best_corner[1]})")
     return best_corner
 
 # Given a pixel location close to the real corner, try to find the real corner

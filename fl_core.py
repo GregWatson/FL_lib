@@ -33,6 +33,12 @@ def rotate_line(line, center, angle_rad):
     new_end = rotate_point((x2, y2), center, angle_rad)
     return (new_start, new_end)
 
+def rotate_image(image, angle_rad):
+    height, width = image.shape[:2]
+    center = (width // 2, height // 2)
+    rotation_matrix = cv2.getRotationMatrix2D(center, np.degrees(angle_rad), 1.0)
+    return cv2.warpAffine(image, rotation_matrix, (width, height))
+
 def get_distance_between_2_points(pt1, pt2):
     return math.sqrt((pt1[0] - pt2[0])**2 + (pt1[1] - pt2[1])**2)
 
