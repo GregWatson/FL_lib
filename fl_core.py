@@ -267,10 +267,15 @@ def draw_poly(image, pts, color=(0,0,255), thickness=4):
 def draw_triangle(image, pts3, color=(0, 255, 0), thickness=1):
     cv2.polylines(image, [np.array([[pts3[0][0], pts3[0][1]], [pts3[1][0], pts3[1][1]], [pts3[2][0], pts3[2][1]]], dtype=np.int32)], isClosed=True, color=color, thickness=thickness)   
 
+# show an image and optionally wait for a keypress (in which case delete the image)
+# scale or do not scale.
 def show_image(img, str="Image", max_side=1000, wait_for_key=True):
-    x_scale_factor = max_side / img.shape[1]
-    y_scale_factor = max_side / img.shape[0]
-    scale_factor = min(x_scale_factor, y_scale_factor, 1.0)
+    if max_side is None:
+        scale_factor = 1.0
+    else:
+        x_scale_factor = max_side / img.shape[1]
+        y_scale_factor = max_side / img.shape[0]
+        scale_factor = min(x_scale_factor, y_scale_factor, 1.0)
     resized_image = cv2.resize(img, (0, 0), fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
     cv2.imshow(str, resized_image)
     if wait_for_key:
@@ -326,16 +331,23 @@ def convert_ImgA_to_same_type_as_ImgB(imgA, imgB):
     raise ValueError("Unsupported image type combination")
 
 # Scale and place the foreground image onto the background image at the specified position and dimensions.
-def scale_and_place_foreground_with_background(foreground, background,fgnd_dimensions,fgnd_position_2d):
+# If no scaling is needed then leave fgnd_dimensions as None. 
+# The fgnd_position_2d is the top-left corner of where the foreground will be placed on the background.
+def scale_and_place_foreground_with_background(foreground, background,fgnd_position_2d, fgnd_dimensions=None):
     bgnd_bgra = convert_img_to_bgra(background)
     fgnd_img = convert_img_to_bgra(foreground)
 
-    # Scale the foreground
-    fg_resized = cv2.resize(fgnd_img, fgnd_dimensions, interpolation=cv2.INTER_AREA)
+    # Scale the foreground if dimensions are provided
+    if fgnd_dimensions is not None:
+        fg_resized = cv2.resize(fgnd_img, fgnd_dimensions, interpolation=cv2.INTER_AREA)
+    else:
+        fg_resized = fgnd_img
+
     fg_h, fg_w = fg_resized.shape[:2]
 
     x_offset, y_offset = fgnd_position_2d
 
+    # print(f"foreground wxh = {fg_w},{fg_h}.  BG pos = {x_offset},{y_offset}.")
     # Separate the BGR color channels and the Alpha channel
     fg_bgr = fg_resized[:, :, :3]
     alpha = fg_resized[:, :, 3] / 255.0  # Normalize alpha to range [0.0, 1.0]

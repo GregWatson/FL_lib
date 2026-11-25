@@ -219,7 +219,7 @@ def get_box_pixel_list(pointXY, box_len, maxX, maxY):
 # Two phases:
 # 1: Find a pixel close to pointXY that is set (not black). Call this startXY
 # 2: Expand outwards from startXY until we have an expansion that doesnt find 
-#    any pixels set. Then return pixel that was set and closest to img_corner.
+#    any pixels set. Then return pixel that was set AND closest to img_corner.
 def find_better_corner(image, pointXY, img_corner):
     min_white = 128 # pixel value to be a set pixel
     #print(f"find_better_corner: Initial Pixel at ({pointXY[0]},{pointXY[1]}) is {image[pointXY[1], pointXY[0]]}. img_corner is ({img_corner[0]},{img_corner[1]})")

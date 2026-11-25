@@ -58,8 +58,9 @@ def find_best_match_given_surrounding_pieces(surrounding_pieces, constraints, po
     best_piece = None
     best_score = float('inf')
     best_dir = None  # rotation for the best piece.
-    for c,v in constraints.items(): print(f"Constraint {c} is {v}")
+    for c,v in constraints.items(): print(f"  Constraint {c} is {v}")
     for possible in possibles:
+        print(f"  -- Looking at piece {possible.info.id} of type {possible.info.piece_type}")
         if possible.info.piece_type not in constraints['P']: continue
 
         # get all the possible (1-4) different piece rotations that meet the constraints.
@@ -67,7 +68,7 @@ def find_best_match_given_surrounding_pieces(surrounding_pieces, constraints, po
         if not possible_dirs: continue
 
         # We have at LEAST one rotation that meets the constraints.
-        # print(f"Trying possible piece {possible.info.id}")
+        print(f"  -- Trying possible piece {possible.info.id}")
 
         # Save original rotation (dir)
         orig_dir = possible.dir.copy()

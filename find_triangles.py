@@ -1,5 +1,7 @@
-from fl_core import point_to_infinite_line_distance, get_adjacent_points, get_distance_between_2_points
+import cv2
+from fl_core import point_to_infinite_line_distance, get_adjacent_points, get_distance_between_2_points, show_image
 from fl_types import SideType, P_Triangle, PieceType    
+import sys
 
 # Returns the triangles for each edge.
 # A triangle is [ 3 points] - formed from the two corners of the side and the point furthest away from the line 
@@ -23,8 +25,17 @@ from fl_types import SideType, P_Triangle, PieceType
 def find_triangles_from_corners(img, corners, debug=False):
 
     img_w, img_h = img.shape[1], img.shape[0]
-    cx = img_w // 2 # center
-    cy = img_h // 2
+
+    # get center of the four corners
+    cx = 0
+    cy = 0
+    for corner in [ col for row in corners for col in row if col]:
+        _, point, _ = corner
+        cx += point[0]
+        cy += point[1]
+
+    cx //= 4  # center
+    cy //= 4
 
     # (side_name, corner1, corner2, side_midpoint, side_normal)
     sides = [ ('N', corners[0][0][1], corners[0][1][1], (cx, 0), (0,1)),
@@ -33,13 +44,15 @@ def find_triangles_from_corners(img, corners, debug=False):
               ('W', corners[0][0][1], corners[1][0][1], (0, cy), (1,0)) ]
 
     # num_to_check: number of points to check starting from the midpoint of the side and moving outwards.
+    # return the furthest distance from a point on the curve to the line between the corners.
+    # Also return the edge type (TAB, BLANK, EDGE)
     def find_furthest_point_for_side(img, side, thresh=20, num_to_check=100, min_distance=20):
         # Thresh is grey level. If a pixel is darker than this value, it is ignored.
         side_name, corner1, corner2, side_midpoint, side_normal = side
         img_w, img_h = img.shape[1], img.shape[0]
         min_dist_from_corner = min(img_h, img_w)//10
         tab_min_dist_from_edge = min(img_h, img_w)//20
-
+        dist_thresh = 6
         # print(f"Process side {side_name} with midpoint {side_midpoint} ")
         # Note: could optimize performance by precomputing coefficients A, B, and C in the line 
         # equation Ax + By + C = 0 for the line defined by corner1 and corner2, and then use those 
@@ -49,6 +62,8 @@ def find_triangles_from_corners(img, corners, debug=False):
         # First start at the line midpoint and head in the direction of the normal to the side, until we find 
         # a pixel that is on (piece contour). Then follow the contour in both directions to find maxima and minima.
         
+        if debug: img_copy = img.copy()
+
         sx,sy = side_midpoint
         while sx >= 0 and sx < img_w and sy >= 0 and sy < img_h and img[sy][sx] < thresh:
             sx += side_normal[0]
@@ -61,14 +76,16 @@ def find_triangles_from_corners(img, corners, debug=False):
         unchecked_points = get_adjacent_points(img, (sx, sy), thresh=thresh)
         # print(f"Side {side_name} starts at {sx},{sy}  dist={max_dist:.2f}  unchecked = {len(unchecked_points)}")
 
-
+        # Track up to two nearest and furthest points from CENTER
+        nearest_points = [None, None]  # each entry is (pointXY, distrance)
+        furthest_points = [None, None]
         while (len(unchecked_points) > 0 and num_to_check > 0):
             px, py = unchecked_points.pop(0)
             #if side_name == 'W': 
             #    print(f"{side_name} {num_to_check}: Checking at point {px},{py}. val = {img[py][px]}")
             if img[py][px] >= thresh:
                 num_to_check -= 1
-                # Check not too close too corner
+                # Check not too close to corner
                 skip = False
                 for c in [corner1, corner2]:
                     dist_from_corner = get_distance_between_2_points((px, py), c)
@@ -76,23 +93,45 @@ def find_triangles_from_corners(img, corners, debug=False):
                         skip  = True
                 if skip: continue
                 dist = point_to_infinite_line_distance((px, py), corner1, corner2)
-                #if side_name == 'W': 
-                #    print(f"{side_name} {num_to_check}: Checking at point {px},{py}. D={dist}  (max = {max_dist} )  dist_to_C = {dist_from_corner} (min={min_dist_from_corner})")
+                #if side_name == 'E': 
+                #    print(f"{side_name} {num_to_check}: Checking at point {px},{py}. D={dist}  (max = {max_dist} )  dist_to_C = {dist_from_corner} (min={min_dist_from_corner})   center=({cx},{cy})")
                 if dist > max_dist:
                     max_dist = dist
                     furthest_point = (px, py)
+
+                # update_min_max_from_center((px,py), (cx,cy), nearest_points, furthest_points, side_normal, dist_thresh=dist_thresh)
+
                 unchecked_points.extend(get_adjacent_points(img, (px, py), thresh=thresh))
             img[py][px] = 0 # mark as checked
 
-        # See if tab or blank
-        dist_center_to_corner_line = point_to_infinite_line_distance((cx,cy), corner1, corner2)
-        dist_center_to_point = get_distance_between_2_points((cx,cy), furthest_point)
-        if dist_center_to_corner_line < dist_center_to_point:
-            st = SideType.TAB
-        else:
-            st = SideType.BLANK
+        # # Debug - show the points we found on the image.
+        # if debug:
+        #     for np in nearest_points:
+        #         if np is not None:
+        #             cv2.circle(img_copy, (int(np[0][0]), int(np[0][1])), 5, (127,127,255), -1)
+        #     for fp in furthest_points:
+        #         if fp is not None:
+        #             cv2.circle(img_copy, (int(fp[0][0]), int(fp[0][1])), 5, (255,127,127), -1)
+        #     show_image(img_copy, "Nearest and furthest")
 
-        return (furthest_point, st) if max_dist > min_distance else (0,SideType.EDGE)
+
+
+        # See if tab or blank or edge
+        if max_dist <= min_distance:
+            st = SideType.EDGE
+            furthest_point = 0
+        else:
+            dist_center_to_corner_line = point_to_infinite_line_distance((cx,cy), corner1, corner2)
+            dist_center_to_point = get_distance_between_2_points((cx,cy), furthest_point)
+            if dist_center_to_corner_line < 1.2 * dist_center_to_point:
+                st = SideType.TAB
+            else:
+                st = SideType.BLANK
+            
+            # print(f"Side {side_name}: dist_center_to_corner_line: {dist_center_to_corner_line}  dist_center_to_point: {dist_center_to_point}.  SideType:{st.sideType_String()}")
+
+        print(f"Side {side_name}: SideType:{st.sideType_String()}")
+        return (furthest_point, st)
 
     # -------------------------------
     

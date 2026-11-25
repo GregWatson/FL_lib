@@ -58,12 +58,13 @@ def find_and_place_best_piece_at_XY(jigsaw, x, y):
         print(f"Find and place best piece at ({x},{y})")
         constraints = jigsaw.get_placed_constraints(x=x, y=y)
         surrounding_pieces = jigsaw.get_surrounding_pieces(x=x,y=y)
+        if (x==5 and y==5): print(f"    Constraints at ({x},{y}) are {constraints}")
         (piece, dir, score) = find_best_match_given_surrounding_pieces(surrounding_pieces, constraints, jigsaw.unplaced)
         if piece is None:
             raise ValueError(f"No suitable piece was found for ({x},{y}).")
         piece.set_orientation(dir)
         jigsaw.placed[y][x] = piece
-        print(f"Adding {str(piece.info.piece_type)} piece {piece.info.id} to grid at ({x},{y})")
+        print(f"Adding {str(piece.info.piece_type)} piece {piece.info.id} to grid at ({x},{y}): {piece.print_edges()}")
         jigsaw.unplaced.remove(piece)
 
 def build_edges(jigsaw):
@@ -77,14 +78,16 @@ def build_edges(jigsaw):
         print("Placing {} edge.".format("left" if x == 0 else "right"))
         for y in range(jigsaw.dim[1]):
             find_and_place_best_piece_at_XY(jigsaw, x, y)
+            new_image = jigsaw.create_image_of_jigsaw()
+            show_image(new_image, str="Jigsaw", max_side=1000, wait_for_key=True)
 
     print("Placing bottom edge")
     y = jigsaw.dim[1]-1 # bottom
     for x in range(jigsaw.dim[0]):
         find_and_place_best_piece_at_XY(jigsaw, x, y)
+        new_image = jigsaw.create_image_of_jigsaw()
+        show_image(new_image, str="Jigsaw", max_side=1000, wait_for_key=True)
 
-    new_image = jigsaw.create_image_of_jigsaw()
-    show_image(new_image, str="Jigsaw", max_side=1000, wait_for_key=True)
 
 
 def solve_puzzle(jigsaw: Jigsaw, debug=False) -> bool:

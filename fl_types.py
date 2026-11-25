@@ -25,6 +25,13 @@ class SideType(Enum):
             return None
         return SideType.TAB if self == SideType.BLANK else SideType.BLANK 
 
+    def sideType_String(self):
+        if self == SideType.EDGE: return "Edge"
+        elif self == SideType.CURVE: return "Curve"
+        elif self == SideType.TAB: return "Tab"
+        else: return "Blank"
+
+
 class P_Triangle:
     """ Info about a triangle on a side.
     NOTE: if there are 3 points then they are always ordered as corner1, corner2, mid-point
@@ -118,10 +125,11 @@ class J_Piece:
             'user_image': None, # Image or None. Orig for *only* this piece. Pre-rotation
             'inverse_transform_fn': None, # Inverse transform matrix to place point back in full original image
             'rot_center': None, # Center of rotation for user_image
+            'scale_factor': 1.0 # Value used when scaling original to get piece image.
         }
         self.rot = { # Info of post-rotation image
             'rotation_angle_rad': None, # Rotation angle in radians
-            'edges_image_grey': None, # Rotated edges only (grey)
+            'edges_image_grey': None, # Image. Rotated edges only (grey)
             'img_w': None, # Width of the image
             'img_h': None,  # Height of image
             'corners': None, # List of 2 lists of 2 corners: [[TL, TR], [BL, BR]]. Each is (corner-ness, point(x,y), outer angle in radians)
@@ -145,6 +153,13 @@ class J_Piece:
     def get_sidetype_by_dir(self, dir:str): # dir in NESW
         index = self.dir[dir]
         return self.info.side_types[index]
+
+    def print_edges(self):
+        r = ''
+        for d in 'NESW': 
+            s = self.get_sidetype_by_dir(d).sideType_String()
+            r = r + f"{d}:{s} "
+        return r
     
     # Check that current piece direction satisfies the constraints.
     def piece_side_constraints_ok(self, constraints: dict, use_given_dir = False, given_dir = None):
@@ -211,7 +226,11 @@ class Jigsaw:
 
         if y==0: constraints['N'] = SideType.EDGE
         else: 
-            if self.placed[y-1][x] is not None: constraints['N'] = self.placed[y-1][x].get_sidetype_by_dir('S').get_connecting_type()
+            if self.placed[y-1][x] is not None: 
+                sidetype_N = self.placed[y-1][x].get_sidetype_by_dir('S')
+                constraints['N'] = sidetype_N.get_connecting_type()
+                print(f"      Piece North has South type as {sidetype_N} and so connecting type is {constraints['N']}")                
+                # constraints['N'] = self.placed[y-1][x].get_sidetype_by_dir('S').get_connecting_type()
 
         if y==(self.dim[1]-1): constraints['S'] = SideType.EDGE
         else: 
@@ -271,8 +290,12 @@ class Jigsaw:
                 piece = self.placed[y][x]
                 if piece is not None:
                     macro_rotate_rads = piece.get_macro_rotate_rads()
-                    print(f"Macro rotate for {x},{y} is {np.degrees(macro_rotate_rads)}")
+                    # print(f"Macro rotate for {x},{y} is {np.degrees(macro_rotate_rads)}")
                     # Rotate the piece's edges image by the macro rotation
                     rot_img = rotate_image(self.placed[y][x].rot["edges_image_grey"], macro_rotate_rads)
-                    main_img = scale_and_place_foreground_with_background(rot_img, main_img, (100, 100), (x*100, y*100))
+                    # scale back to original size
+                    scale_factor = piece.orig['scale_factor']
+                    scaled_img = cv2.resize(rot_img, (0, 0), fx=1.0/scale_factor, fy=1.0/scale_factor, interpolation=cv2.INTER_CUBIC)
+
+                    main_img = scale_and_place_foreground_with_background(scaled_img, main_img, (x*100, y*100), (100,100))
         return main_img

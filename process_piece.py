@@ -34,12 +34,13 @@ def process_piece(piece: J_Piece, pre_processed_image: np.ndarray, debug:bool=Fa
 
     orig_x, orig_y, w, h = info.box
     cx, cy = info.centroid
-    piece_image, _, rot_center, inverse_transform_fn = fl_pad_and_scale(pre_processed_image, 
+    piece_image, _, rot_center, inverse_transform_fn, scale_factor = fl_pad_and_scale(pre_processed_image, 
                                                                         [[(orig_x,orig_y), (orig_x+w, orig_y+h)]],
                                                                         info.centroid,
-                                                                        new_img_size = 500, 
+                                                                        new_img_size = None, 
                                                                         debug=debug)
     piece.orig['user_image'] = piece_image
+    piece.orig['scale_factor'] = scale_factor
     piece.orig['inverse_transform_fn'] = inverse_transform_fn
     piece.orig['rot_center'] = rot_center
 
@@ -92,14 +93,12 @@ def process_piece(piece: J_Piece, pre_processed_image: np.ndarray, debug:bool=Fa
 
     if debug:
         # Display rotated edge image with corners.
-        scale_factor = max(1.0, 2000.0 / max(rotated_edges.shape[0], rotated_edges.shape[1]))
-        rotated_edges_resized = cv2.resize(rotated_edges, (0, 0), fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
-        rotated_edges_bgr = convert_img_to_bgr(rotated_edges_resized)
+        rotated_edges_bgr = convert_img_to_bgr(rotated_edges)
         # Add approx corners to rot_edges image.
         for corner_point in [ col for row in corners for col in row if col]:
             _, point, _ = corner_point
-            cv2.circle(rotated_edges_bgr, (int(scale_factor*point[0]), int(scale_factor*point[1])), 8, (0, 0, 200), 2)
-        show_image(rotated_edges_bgr, str=f"Rot edges and approx corners {info.id}", max_side=1000, wait_for_key=True)
+            cv2.circle(rotated_edges_bgr, (int(point[0]), int(point[1])), 4, (0, 0, 200), 2)
+        show_image(rotated_edges_bgr, str=f"Rot edges and better corners {info.id}", max_side=None, wait_for_key=False)
 
 
     
@@ -107,6 +106,7 @@ def process_piece(piece: J_Piece, pre_processed_image: np.ndarray, debug:bool=Fa
     # Operate on rotated edge image.
     triangles, side_types, piece_type, dir = find_triangles_from_corners(rotated_edges, corners, debug=debug)
     if not triangles or not side_types or not dir: return False
+    print(f"Side Types are : {side_types}")
     if len(triangles) == 4:
         piece.dir = dir
         for tri, et in zip(triangles, side_types):

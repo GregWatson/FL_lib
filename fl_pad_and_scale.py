@@ -6,15 +6,16 @@ from fl_core import get_bounding_box_from_lines, get_distance_between_2_points
 # 1. create a new image from the bounding box of just the piece itself.
 # 2. pad the image so that it can be rotated around cx,cy without being cropped.
 # 3. scale it to the desired size.
-# Return the new image, the new b-box, and the new center of rotation.
-
+# Return: - the new image, - the new b-box, - the new center of rotation.
+#         - A function to reverse the transformation.
+#         - The scaling factor used.
 # Inputs:
 # image - a cv2 image that is monochrome
 # lines : list of line, where line = [start, end], where start and end are points (x,y)
 # rot_point: point (x,y)
 # new_image_size: the desired size of the largest dimension (height or width) after scaling.
 
-def fl_pad_and_scale(image, lines, rot_point, new_img_size = 500, debug=False):
+def fl_pad_and_scale(image, lines, rot_point, new_img_size = None, debug=False):
 
     # create a new image that is just the piece, by cropping the pre_processed_image using the 
     # bounding box of the piece.
@@ -42,11 +43,15 @@ def fl_pad_and_scale(image, lines, rot_point, new_img_size = 500, debug=False):
 
     # scale the image to new_img_size on longest side for better processing. 
     # We can use cv2.resize for this, and we can use interpolation to maintain quality.
-    scale_factor = new_img_size / max(w + 2*add_width, h + 2*add_height)
-    piece_image = cv2.resize(piece_image, (0, 0), fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
+    if new_img_size is None:
+        scale_factor = 1.0
+    else:
+        scale_factor = new_img_size / max(w + 2*add_width, h + 2*add_height)
+        piece_image = cv2.resize(piece_image, (0, 0), fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
     cx = int(cx * scale_factor)
     cy = int(cy * scale_factor)
     bb = [(bb[0][0]*scale_factor, bb[0][1]*scale_factor), (bb[1][0]*scale_factor, bb[1][1]*scale_factor)]
+    print(f"Scale factor for pad_and_scale is {scale_factor}, new image size is {piece_image.shape[1]}x{piece_image.shape[0]}")
 
     def inverse_transform(pt):
         pt_x, pt_y = pt
@@ -61,4 +66,4 @@ def fl_pad_and_scale(image, lines, rot_point, new_img_size = 500, debug=False):
         y_orig = y_cropped + y
         return (x_orig, y_orig)
 
-    return piece_image, bb, (cx, cy), inverse_transform
+    return piece_image, bb, (cx, cy), inverse_transform, scale_factor
